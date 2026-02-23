@@ -1,0 +1,57 @@
+[DATABASE]
+host = CHANGEME
+user = CHANGEME
+dbname = CHANGEME
+password = CHANGEME
+port = CHANGEME
+
+[Minocore_API]
+api_url = CHANGEME
+bearer_token = CHANGEME
+entity_id = CHANGEME
+
+[SQLALCHEMY]
+host = CHANGEME
+dbname = CHANGEME
+user = CHANGEME
+password = CHANGEME
+port = CHANGEME
+table = CHANGEME
+
+[SQLALCHEMY_DEV]
+host = CHANGEME
+dbname = CHANGEME
+user = CHANGEME
+password = CHANGEME
+port = CHANGEME
+table = CHANGEME
+
+[Email]
+from_address = CHANGEME
+password = CHANGEME
+admin_emails = CHANGEME
+smtp_server = CHANGEME
+smtp_port = CHANGEME
+generate_emails = CHANGEME
+to_address = CHANGEME
+
+[Email_DEV]
+from_address = CHANGEME
+password = CHANGEME
+admin_emails = CHANGEME
+smtp_server = CHANGEME
+smtp_port = CHANGEME
+generate_emails = CHANGEME
+to_address = CHANGEME
+
+[TELEGRAM]
+generate_telegram = CHANGEME
+api_url = CHANGEME
+bearer_token = CHANGEME
+telegram_ids = CHANGEME
+
+[TELEGRAM_Dev]
+generate_telegram = CHANGEME
+api_url = CHANGEME
+bearer_token = CHANGEME
+telegram_ids = CHANGEME

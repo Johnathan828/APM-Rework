@@ -1,0 +1,473 @@
+{
+  "site": "LIO",
+  "debug": true,
+        "Mill1PinionConditionScore": {
+          "debug": false,
+          "sensor_folder": "LIO_Mill_1_Pinion_Monitoring",
+          "Model_Description": "Mill 1 Pinion Condition Score",
+          "Plant Section": "Milling",
+          "Features": {
+            "Mill1PinionConditionScore042G": {
+              "tag": "ns=3;s=\"AI_200-TT-042G\".\"OUT_EU\"",
+              "description": "ns=3;s=AI_200-TT-042G.OUT_EU - MILL 1 PINION BEARING FLOATING END TEMPERATURE TRANSMITTER",
+              "unit": "°C",
+              "unit_description": "Temperature"
+            },
+            "Mill1PinionConditionScore042H": {
+              "tag": "ns=3;s=\"AI_200-TT-042H\".\"OUT_EU\"",
+              "description": "ns=3;s=AI_200-TT-042H.OUT_EU - MILL 1 PINION BEARING FIXED END TEMPERATURE TRANSMITTER",
+              "unit": "°C",
+              "unit_description": "Temperature"
+            },
+            "Mill1PinionConditionScore042N": {
+              "tag": "ns=3;s=\"AI_200-TT-042N\".\"OUT_EU\"",
+              "description": "ns=3;s=AI_200-TT-042N.OUT_EU - MILL 1 PINION INFRARED TEMPERATURE TRANSMITTER 1 ",
+              "unit": "°C",
+              "unit_description": "Temperature"
+            },
+            "Mill1PinionConditionScore042O": {
+              "tag": "ns=3;s=\"AI_200-TT-042O\".\"OUT_EU\"",
+              "description": "ns=3;s=AI_200-TT-042O.OUT_EU - MILL 1 PINION INFRARED TEMPERATURE TRANSMITTER 2",
+              "unit": "°C",
+              "unit_description": "Temperature"
+            },
+            "Mill1PinionConditionScore042P": {
+              "tag": "ns=3;s=\"AI_200-TT-042P\".\"OUT_EU\"",
+              "description": "ns=3;s=AI_200-TT-042P.OUT_EU - MILL 1 PINION INFRARED TEMPERATURE TRANSMITTER 3",
+              "unit": "°C",
+              "unit_description": "Temperature"
+            }
+          },
+          "filter_tag": {
+            "FilterTagName": "Mill1PinionConditionScore_Section_Status",
+            "description": "Mill1PinionConditionScore_Section_Status",
+            "tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
+            "filter_value": 0.9,
+            "alarm_thresh": 0.75
+          },
+          "shutdown_rules": {
+              "tags": {
+                  "ball_mill_power_kw":"ns=3;s=\"AI_200-JT-042\".\"OUT_EU\""
+              },
+              "shutdown_rules":"(ball_mill_power_kw < 700)"
+          },
+          "Other": {
+            "displayname_scores": "Mill1PinionConditionScore",
+            "displayname_feature_cont": "None",
+            "granularity": 15,
+            "granularity_type": "seconds",
+            "filter_tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
+            "filter_tag_thresh": 700,
+            "filter_value": 1,
+            "filter_inst_alarm": 5,
+            "alarm_thresh": 0.75,
+            "identifier": "sourceidentifier",
+            "model_outputs_path":"../LIO_Mill_1_Pinion_Monitoring/etc/model_outputs",
+            "sampling_freq_seconds": 60,
+            "sampling_window": 1,
+            "alert_holding_minutes": 15,
+            "startup_period": 3,
+            "percentile_max": 0.95,
+            "percentile_min": 0.05,
+            "train_test_plit": 0.2,
+            "training_months": 6,
+            "training_months_freq": 1,
+            "normal_op_window_minutes": 120,
+            "anomaly_eval_window_minutes": 15
+          },
+          "Method": {
+            "StatisticalThresholds": {
+              "Active": false,
+              "percentilemax": 0.99,
+              "smoothing_mean": 10,
+              "resample_interval": "h"
+            },
+            "FixedThresholds": {
+              "Active": true,
+              "high": {
+                "ns=3;s=\"AI_200-TT-042G\".\"OUT_EU\"": 68.24793004989624,
+                "ns=3;s=\"AI_200-TT-042H\".\"OUT_EU\"": 76.01273202896118,
+                "ns=3;s=\"AI_200-TT-042N\".\"OUT_EU\"": 42.134602308273315,
+                "ns=3;s=\"AI_200-TT-042O\".\"OUT_EU\"": 42.49810075759888,
+                "ns=3;s=\"AI_200-TT-042P\".\"OUT_EU\"": 51.623536586761475
+              },
+              "low": {
+                "ns=3;s=\"AI_200-TT-042G\".\"OUT_EU\"": 20,
+                "ns=3;s=\"AI_200-TT-042H\".\"OUT_EU\"": 20,
+                "ns=3;s=\"AI_200-TT-042N\".\"OUT_EU\"": 16.69175887107849,
+                "ns=3;s=\"AI_200-TT-042O\".\"OUT_EU\"": 15.994602143764496,
+                "ns=3;s=\"AI_200-TT-042P\".\"OUT_EU\"": 20
+              }
+            },
+            "IsolationForests": {
+              "Active": false,
+              "max_samples": 5000,
+              "contamination": 10
+            }
+          }
+        },
+        "Mill1TrunnionConditionScore": {
+          "debug": false,
+          "sensor_folder": "LIO_Mill_1_Trunnion_Monitoring",
+          "Model_Description": "Mill 1 Trunnion Condition Score",
+          "Plant Section": "Milling",
+          "Features": {
+            "Mill1TrunnionConditionScore042B": {
+                "tag": "ns=3;s=\"AI_200-TT-042B\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042B.OUT_EU - MILL 1 FLOATING END TRUNNION BEARING TEMPERATURE 2 TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },
+            "Mill1TrunnionConditionScore042C": {
+                "tag": "ns=3;s=\"AI_200-TT-042C\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042C.OUT_EU - MILL 1 FLOATING END TRUNNION BEARING TEMPERATURE 3 TRANSMITTER ",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },
+                "Mill1TrunnionConditionScore042D": {
+                "tag": "ns=3;s=\"AI_200-TT-042D\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042D.OUT_EU - MILL 1 FIXED END TRUNNION BEARING TEMPERATURE 1 TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },
+            "Mill1TrunnionConditionScore042E": {
+                "tag": "ns=3;s=\"AI_200-TT-042E\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042E.OUT_EU - MILL 1 FIXED END TRUNNION BEARING TEMPERATURE 2 TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },
+            "Mill1TrunnionConditionScore042F": {
+                "tag": "ns=3;s=\"AI_200-TT-042F\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042F.OUT_EU - MILL 1 FIXED END TRUNNION BEARING TEMPERATURE 3 TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },
+            "Mill1TrunnionConditionScore658A": {
+                "tag": "ns=3;s=\"AI_200-TT-658A\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-658A.OUT_EU - MILL 1 TRUNNION BEARING LUBE CLEAN TANK TEMPERATURE TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },
+            "Mill1TrunnionConditionScore658B": {
+                "tag": "ns=3;s=\"AI_200-TT-658B\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-658B.OUT_EU - MILL 1 TRUNNION BEARING LUBE CONDITIONING TANK TEMPERATURE TRANSMITTER ",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },
+            "Mill1TrunnionConditionScore658C": {
+                "tag": "ns=3;s=\"AI_200-TT-658C\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-658C.OUT_EU - MILL 1 TRUNNION BEARING LUBE RETURN TANK TEMPERATURE TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            }
+          },
+          "filter_tag": {
+            "FilterTagName": "Mill1TrunnionConditionScore_Section_Status",
+            "description": "Mill1TrunnionConditionScore_Section_Status",
+            "tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
+            "filter_value": 0.9,
+            "alarm_thresh": 0.75
+          },
+          "shutdown_rules": {
+              "tags": {
+                  "ball_mill_power_kw":"ns=3;s=\"AI_200-JT-042\".\"OUT_EU\""
+              },
+              "shutdown_rules":"(ball_mill_power_kw < 700)"
+          },
+          "Other": {
+            "displayname_scores": "Mill1TrunnionConditionScore",
+            "displayname_feature_cont": "None",
+            "granularity": 15,
+            "granularity_type": "seconds",
+            "filter_tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
+            "filter_tag_thresh": 700,
+            "filter_value": 1,
+            "filter_inst_alarm": 5,
+            "alarm_thresh": 0.75,
+            "identifier": "sourceidentifier",
+            "model_outputs_path":"../LIO_Mill_1_Trunnion_Monitoring/etc/model_outputs",
+            "sampling_freq_seconds": 60,
+            "sampling_window": 1,
+            "alert_holding_minutes": 15,
+            "startup_period": 3,
+            "percentile_max": 0.95,
+            "percentile_min": 0.05,
+            "train_test_plit": 0.2,
+            "training_months": 6,
+            "training_months_freq": 1,
+            "normal_op_window_minutes": 120,
+            "anomaly_eval_window_minutes": 15
+          },
+          "Method": {
+            "StatisticalThresholds": {
+              "Active": false,
+              "percentilemax": 0.99,
+              "smoothing_mean": 10,
+              "resample_interval": "h"
+            },
+            "FixedThresholds": {
+              "Active": true,
+                  "high": {
+                    "ns=3;s=\"AI_200-TT-042B\".\"OUT_EU\"": 48.467790603637695,
+                    "ns=3;s=\"AI_200-TT-042C\".\"OUT_EU\"": 48.592125415802,
+                    "ns=3;s=\"AI_200-TT-042D\".\"OUT_EU\"": 49.87838554382324,
+                    "ns=3;s=\"AI_200-TT-042E\".\"OUT_EU\"": 49.812374114990234,
+                    "ns=3;s=\"AI_200-TT-042F\".\"OUT_EU\"": 49.27752637863159,
+                    "ns=3;s=\"AI_200-TT-658A\".\"OUT_EU\"": 46.29629325866699,
+                    "ns=3;s=\"AI_200-TT-658B\".\"OUT_EU\"": 46.27775955200195,
+                    "ns=3;s=\"AI_200-TT-658C\".\"OUT_EU\"": 40.75746822357178
+                },
+            "low": {
+                    "ns=3;s=\"AI_200-TT-042B\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-042C\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-042D\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-042E\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-042F\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-658A\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-658B\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-658C\".\"OUT_EU\"": 20
+
+                }
+            },
+            "IsolationForests": {
+              "Active": false,
+              "max_samples": 5000,
+              "contamination": 10
+            }
+          }
+    },
+    "Mill1MotorConditionScore": {
+          "debug": false,
+          "sensor_folder": "LIO_Mill_1_Motor_Monitoring",
+          "Model_Description": "Mill 1 Motor Condition Score",
+          "Plant Section": "Milling",
+          "Features": {
+            "Mill1MotorConditionScore042Q": {
+                "tag": "ns=3;s=\"AI_200-TT-042Q\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042Q.OUT_EU - MILL 1 MOTOR DE BEARING TEMPERATURE TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },
+            "Mill1MotorConditionScore042Y": {
+                "tag": "ns=3;s=\"AI_200-TT-042Y\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042Y.OUT_EU - MILL 1 MOTOR NDE BEARINGTEMPERATURE TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },
+            "Mill1MotorConditionScore042R": {
+                "tag": "ns=3;s=\"AI_200-TT-042R\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042R.OUT_EU - MILL 1 MOTOR U2 WINDING TEMPERATURE TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },
+            "Mill1MotorConditionScore042S": {
+                "tag": "ns=3;s=\"AI_200-TT-042S\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042S.OUT_EU - MILL 1 MOTOR V2 WINDING TEMPERATURE TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },
+            "Mill1MotorConditionScore042T": {
+                "tag": "ns=3;s=\"AI_200-TT-042T\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042T.OUT_EU - MILL 1 MOTOR W2 WINDING TEMPERATURE TRANSMITTER ",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            }
+          },
+          "filter_tag": {
+            "FilterTagName": "Mill1MotorConditionScore_Section_Status",
+            "description": "Mill1MotorConditionScore_Section_Status",
+            "tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
+            "filter_value": 0.9,
+            "alarm_thresh": 0.75
+          },
+          "shutdown_rules": {
+              "tags": {
+                  "ball_mill_power_kw":"ns=3;s=\"AI_200-JT-042\".\"OUT_EU\""
+              },
+              "shutdown_rules":"(ball_mill_power_kw < 700)"
+          },
+          "Other": {
+            "displayname_scores": "Mill1MotorConditionScore",
+            "displayname_feature_cont": "None",
+            "granularity": 15,
+            "granularity_type": "seconds",
+            "filter_tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
+            "filter_tag_thresh": 700,
+            "filter_value": 1,
+            "filter_inst_alarm": 5,
+            "alarm_thresh": 0.75,
+            "identifier": "sourceidentifier",
+            "model_outputs_path":"../LIO_Mill_1_Motor_Monitoring/etc/model_outputs",
+            "sampling_freq_seconds": 60,
+            "sampling_window": 1,
+            "alert_holding_minutes": 15,
+            "startup_period": 3,
+            "percentile_max": 0.95,
+            "percentile_min": 0.05,
+            "train_test_plit": 0.2,
+            "training_months": 6,
+            "training_months_freq": 1,
+            "normal_op_window_minutes": 120,
+            "anomaly_eval_window_minutes": 15
+          },
+          "Method": {
+            "StatisticalThresholds": {
+              "Active": false,
+              "percentilemax": 0.99,
+              "smoothing_mean": 10,
+              "resample_interval": "h"
+            },
+            "FixedThresholds": {
+              "Active": true,
+                  "high": {
+                    "ns=3;s=\"AI_200-TT-042Q\".\"OUT_EU\"": -118.51851654052734,
+                    "ns=3;s=\"AI_200-TT-042R\".\"OUT_EU\"": 91.32803726196289,
+                    "ns=3;s=\"AI_200-TT-042S\".\"OUT_EU\"": 91.17024660110474,
+                    "ns=3;s=\"AI_200-TT-042T\".\"OUT_EU\"": 92.19405698776245,
+                    "ns=3;s=\"AI_200-TT-042Y\".\"OUT_EU\"": -118.51851654052734
+                },
+                "low": {
+                    "ns=3;s=\"AI_200-TT-042Q\".\"OUT_EU\"": -118.51851654052734,
+                    "ns=3;s=\"AI_200-TT-042R\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-042S\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-042T\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-042Y\".\"OUT_EU\"": -118.51851654052734
+                }
+            },
+            "IsolationForests": {
+              "Active": false,
+              "max_samples": 5000,
+              "contamination": 10
+            }
+          }
+    },
+    "Mill1GearboxConditionScore": {
+          "debug": false,
+          "sensor_folder": "LIO_Mill_1_Gearbox_Monitoring",
+          "Model_Description": "Mill 1 Gearbox Condition Score",
+          "Plant Section": "Milling",
+          "Features": {
+            "Mill1GearboxConditionScore042I": {
+                "tag": "ns=3;s=\"AI_200-TT-042I\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042I.OUT_EU - MILL 1 GEARBOX LOW SPEED SHAFT DE BEARING TEMPERATURE TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },
+            "Mill1GearboxConditionScore042J": {
+                "tag": "ns=3;s=\"AI_200-TT-042J\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042J.OUT_EU - MILL 1 GEARBOX LOW SPEED SHAFT NDE BEARING TEMPERATURE TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },    
+            "Mill1GearboxConditionScore042K": {
+                "tag": "ns=3;s=\"AI_200-TT-042K\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042K.OUT_EU - MILL 1 GEARBOX SUMP OIL TEMPERATURE TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },            
+            "Mill1GearboxConditionScore042L": {
+                "tag": "ns=3;s=\"AI_200-TT-042L\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042L.OUT_EU - MILL 1 GEARBOX HIGH SPEED SHAFT NDE BEARING TEMPERATURE TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },                    
+            "Mill1GearboxConditionScore042M": {
+                "tag": "ns=3;s=\"AI_200-TT-042M\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-042M.OUT_EU - MILL 1 GEARBOX HIGH SPEED SHAFT DE BEARING TEMPERATURE TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },
+            "Mill1GearboxConditionScore666A": {
+                "tag": "ns=3;s=\"AI_200-TT-666A\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-666A.OUT_EU - MILL 1 GEARBOX LUBE CLEAN TANK TEMPERATURE TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },
+            "Mill1GearboxConditionScore666B": {
+                "tag": "ns=3;s=\"AI_200-TT-666B\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-666B.OUT_EU - MILL 1 GEARBOX LUBE RETURN TANK TEMPERATURE TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            },            
+            "Mill1GearboxConditionScore664A": {
+                "tag": "ns=3;s=\"AI_200-TT-664A\".\"OUT_EU\"",
+                "description": "ns=3;s=AI_200-TT-664A.OUT_EU - MILL 1 GEARBOX LUBE DELIVERY OIL TEMPERATURE TRANSMITTER",
+                "unit": "°C",
+                "unit_description": "Temperature"
+            }
+          },
+          "filter_tag": {
+            "FilterTagName": "Mill1GearboxConditionScore_Section_Status",
+            "description": "Mill1GearboxConditionScore_Section_Status",
+            "tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
+            "filter_value": 0.9,
+            "alarm_thresh": 0.75
+          },
+          "shutdown_rules": {
+              "tags": {
+                  "ball_mill_power_kw":"ns=3;s=\"AI_200-JT-042\".\"OUT_EU\""
+              },
+              "shutdown_rules":"(ball_mill_power_kw < 700)"
+          },
+          "Other": {
+            "displayname_scores": "Mill1GearboxConditionScore",
+            "displayname_feature_cont": "None",
+            "granularity": 15,
+            "granularity_type": "seconds",
+            "filter_tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
+            "filter_tag_thresh": 700,
+            "filter_value": 1,
+            "filter_inst_alarm": 5,
+            "alarm_thresh": 0.75,
+            "identifier": "sourceidentifier",
+            "model_outputs_path":"../LIO_Mill_1_Gearbox_Monitoring/etc/model_outputs",
+            "sampling_freq_seconds": 60,
+            "sampling_window": 1,
+            "alert_holding_minutes": 15,
+            "startup_period": 3,
+            "percentile_max": 0.95,
+            "percentile_min": 0.05,
+            "train_test_plit": 0.2,
+            "training_months": 6,
+            "training_months_freq": 1,
+            "normal_op_window_minutes": 120,
+            "anomaly_eval_window_minutes": 15
+          },
+          "Method": {
+            "StatisticalThresholds": {
+              "Active": false,
+              "percentilemax": 0.99,
+              "smoothing_mean": 10,
+              "resample_interval": "h"
+            },
+            "FixedThresholds": {
+              "Active": true,
+                  "high": {
+                    "ns=3;s=\"AI_200-TT-042I\".\"OUT_EU\"": 66.94832754135132,
+                    "ns=3;s=\"AI_200-TT-042J\".\"OUT_EU\"": 65.34740447998047,
+                    "ns=3;s=\"AI_200-TT-042K\".\"OUT_EU\"": 70.30210208892822,
+                    "ns=3;s=\"AI_200-TT-042L\".\"OUT_EU\"": 69.70666933059692,
+                    "ns=3;s=\"AI_200-TT-042M\".\"OUT_EU\"": 65.71949434280396,
+                    "ns=3;s=\"AI_200-TT-664A\".\"OUT_EU\"": 63.339659214019775,
+                    "ns=3;s=\"AI_200-TT-666A\".\"OUT_EU\"": 67.71828079223633,
+                    "ns=3;s=\"AI_200-TT-666B\".\"OUT_EU\"": 68.99504947662354             
+                },
+                "low": {
+                    "ns=3;s=\"AI_200-TT-042I\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-042J\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-042K\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-042L\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-042M\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-664A\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-666A\".\"OUT_EU\"": 20,
+                    "ns=3;s=\"AI_200-TT-666B\".\"OUT_EU\"": 20
+                }
+            },
+            "IsolationForests": {
+              "Active": false,
+              "max_samples": 5000,
+              "contamination": 10
+            }
+          }
+        }
+}
