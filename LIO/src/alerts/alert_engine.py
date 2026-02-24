@@ -33,6 +33,7 @@ class AlertEngine:
     """
     OLD-APM style:
       - Gate must be OPEN (section_status >= filter_value)
+      - Startup suppression: after a gate-open transition, ignore alerts for startup_period minutes
       - Alarm when score <= alarm_thresh
       - Holding rule: must be continuously anomalous for alert_holding_minutes
     """
@@ -49,6 +50,41 @@ class AlertEngine:
         self.alarm_thresh = float(other.get("alarm_thresh", 0.75))
         self.filter_value = float(ft.get("filter_value", other.get("filter_value", 0.9)))
         self.alert_holding_minutes = int(other.get("alert_holding_minutes", 15))
+
+        # NEW: startup suppression window (minutes) – legacy behaviour
+        self.startup_period_minutes = int(other.get("startup_period", 0))
+
+    def _in_startup_period(self, *, section_status_series: pd.Series, latest_ts: pd.Timestamp) -> bool:
+        """
+        Startup means: the gate has recently transitioned from CLOSED -> OPEN,
+        and we are within startup_period_minutes of that transition.
+        """
+        if self.startup_period_minutes <= 0:
+            return False
+        if section_status_series is None or section_status_series.empty:
+            return False
+
+        sec = section_status_series.copy()
+        sec = sec.dropna()
+        if sec.empty:
+            return False
+
+        # Consider CLOSED where section_status < filter_value
+        closed_mask = sec < self.filter_value
+        if not closed_mask.any():
+            # gate has been open for entire available history; can't detect a "recent open"
+            return False
+
+        # last time it was closed
+        last_closed_ts = closed_mask[closed_mask].index.max()
+
+        # If latest is before last_closed (shouldn't happen), not startup
+        if pd.to_datetime(latest_ts) <= pd.to_datetime(last_closed_ts):
+            return False
+
+        # If gate is currently open and the last closed was "recent", we are in startup
+        delta = pd.to_datetime(latest_ts) - pd.to_datetime(last_closed_ts)
+        return delta < timedelta(minutes=self.startup_period_minutes)
 
     def evaluate(self, *, score_series: pd.Series, section_status_series: pd.Series, now: datetime) -> AlertDecision:
         score_series = _to_utc_naive_index(score_series)
@@ -67,8 +103,13 @@ class AlertEngine:
 
         latest_ts = score_series.index.max()
         latest_score = float(score_series.loc[latest_ts])
-        latest_sec = float(section_status_series.loc[latest_ts]) if (section_status_series is not None and not section_status_series.empty) else 0.0
+        latest_sec = (
+            float(section_status_series.loc[latest_ts])
+            if (section_status_series is not None and not section_status_series.empty and latest_ts in section_status_series.index)
+            else 0.0
+        )
 
+        # Gate must be open
         gate_open = latest_sec >= self.filter_value
         if not gate_open:
             return AlertDecision(
@@ -81,7 +122,19 @@ class AlertEngine:
                 anomaly_started_at=None,
             )
 
-        # Anomaly definition for this system:
+        # NEW: startup suppression
+        if self._in_startup_period(section_status_series=section_status_series, latest_ts=latest_ts):
+            return AlertDecision(
+                should_alert=False,
+                reason="startup_period",
+                latest_score=latest_score,
+                latest_section_status=latest_sec,
+                alarm_thresh=self.alarm_thresh,
+                filter_value=self.filter_value,
+                anomaly_started_at=None,
+            )
+
+        # Anomaly definition:
         # score <= alarm_thresh triggers alarm
         is_anom_now = latest_score <= self.alarm_thresh
         if not is_anom_now:
@@ -112,11 +165,9 @@ class AlertEngine:
 
         all_anom = (window_scores <= self.alarm_thresh).all()
         if not all_anom:
-            # find most recent non-anom -> anomaly start is next point
             non_anom_idx = window_scores[window_scores > self.alarm_thresh].index
             if len(non_anom_idx) > 0:
                 last_ok = non_anom_idx.max()
-                # anomaly started after last_ok
                 after = window_scores.loc[window_scores.index > last_ok]
                 start_at = after.index.min().to_pydatetime() if not after.empty else latest_ts.to_pydatetime()
             else:
