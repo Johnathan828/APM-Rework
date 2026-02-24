@@ -43,7 +43,7 @@
             "description": "Mill1PinionConditionScore_Section_Status",
             "tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
             "filter_value": 0.9,
-            "alarm_thresh": 0.75
+            "alarm_thresh": 0.95
           },
           "shutdown_rules": {
               "tags": {
@@ -60,7 +60,7 @@
             "filter_tag_thresh": 700,
             "filter_value": 1,
             "filter_inst_alarm": 5,
-            "alarm_thresh": 0.75,
+            "alarm_thresh": 0.95,
             "identifier": "sourceidentifier",
             "model_outputs_path":"../LIO_Mill_1_Pinion_Monitoring/etc/model_outputs",
             "sampling_freq_seconds": 60,
@@ -76,12 +76,6 @@
             "anomaly_eval_window_minutes": 15
           },
           "Method": {
-            "StatisticalThresholds": {
-              "Active": false,
-              "percentilemax": 0.99,
-              "smoothing_mean": 10,
-              "resample_interval": "h"
-            },
             "FixedThresholds": {
               "Active": true,
               "high": {
@@ -99,11 +93,29 @@
                 "ns=3;s=\"AI_200-TT-042P\".\"OUT_EU\"": 20
               }
             },
-            "IsolationForests": {
-              "Active": false,
-              "max_samples": 5000,
-              "contamination": 10
-            }
+            "StatisticalThresholds": {
+                "Active": false,
+                "Training": {
+                  "pull_interval": "1 minutes",
+                  "mode": "quantile",
+                  "quantile_hi": 0.99,
+                  "quantile_lo": 0.01,
+                  "smoothing_window": 10,
+                  "resample_rule": "h"
+                }
+              },
+            "IsolationForest": {
+                "Active": false,
+                "Training": {
+                  "pull_interval": "15 minutes",
+                  "n_estimators": 200,
+                  "contamination": 0.01,
+                  "max_samples": "auto",
+                  "random_state": 42,
+                  "resample_rule": "h",
+                  "dropna": "any"
+                }
+              }
           }
         },
         "Mill1TrunnionConditionScore": {
@@ -199,12 +211,6 @@
             "anomaly_eval_window_minutes": 15
           },
           "Method": {
-            "StatisticalThresholds": {
-              "Active": false,
-              "percentilemax": 0.99,
-              "smoothing_mean": 10,
-              "resample_interval": "h"
-            },
             "FixedThresholds": {
               "Active": true,
                   "high": {
@@ -229,10 +235,28 @@
 
                 }
             },
-            "IsolationForests": {
-              "Active": false,
-              "max_samples": 5000,
-              "contamination": 10
+            "StatisticalThresholds": {
+                "Active": false,
+                "Training": {
+                  "pull_interval": "1 minutes",
+                  "mode": "quantile",
+                  "quantile_hi": 0.99,
+                  "quantile_lo": 0.01,
+                  "smoothing_window": 10,
+                  "resample_rule": "h"
+                }
+            },
+            "IsolationForest": {
+                "Active": false,
+                "Training": {
+                  "pull_interval": "15 minutes",
+                  "n_estimators": 200,
+                  "contamination": 0.01,
+                  "max_samples": "auto",
+                  "random_state": 42,
+                  "resample_rule": "h",
+                  "dropna": "any"
+                }
             }
           }
     },
@@ -311,12 +335,6 @@
             "anomaly_eval_window_minutes": 15
           },
           "Method": {
-            "StatisticalThresholds": {
-              "Active": false,
-              "percentilemax": 0.99,
-              "smoothing_mean": 10,
-              "resample_interval": "h"
-            },
             "FixedThresholds": {
               "Active": true,
                   "high": {
@@ -334,10 +352,28 @@
                     "ns=3;s=\"AI_200-TT-042Y\".\"OUT_EU\"": -118.51851654052734
                 }
             },
-            "IsolationForests": {
-              "Active": false,
-              "max_samples": 5000,
-              "contamination": 10
+            "StatisticalThresholds": {
+                "Active": false,
+                "Training": {
+                  "pull_interval": "1 minutes",
+                  "mode": "quantile",
+                  "quantile_hi": 0.99,
+                  "quantile_lo": 0.01,
+                  "smoothing_window": 10,
+                  "resample_rule": "h"
+                }
+            },
+            "IsolationForest": {
+                "Active": false,
+                "Training": {
+                  "pull_interval": "15 minutes",
+                  "n_estimators": 200,
+                  "contamination": 0.01,
+                  "max_samples": "auto",
+                  "random_state": 42,
+                  "resample_rule": "h",
+                  "dropna": "any"
+                }
             }
           }
     },
@@ -434,12 +470,6 @@
             "anomaly_eval_window_minutes": 15
           },
           "Method": {
-            "StatisticalThresholds": {
-              "Active": false,
-              "percentilemax": 0.99,
-              "smoothing_mean": 10,
-              "resample_interval": "h"
-            },
             "FixedThresholds": {
               "Active": true,
                   "high": {
@@ -463,10 +493,28 @@
                     "ns=3;s=\"AI_200-TT-666B\".\"OUT_EU\"": 20
                 }
             },
-            "IsolationForests": {
-              "Active": false,
-              "max_samples": 5000,
-              "contamination": 10
+            "StatisticalThresholds": {
+                "Active": false,
+                "Training": {
+                  "pull_interval": "1 minutes",
+                  "mode": "quantile",
+                  "quantile_hi": 0.99,
+                  "quantile_lo": 0.01,
+                  "smoothing_window": 10,
+                  "resample_rule": "h"
+                }
+            },
+            "IsolationForest": {
+                "Active": false,
+                "Training": {
+                  "pull_interval": "15 minutes",
+                  "n_estimators": 200,
+                  "contamination": 0.01,
+                  "max_samples": "auto",
+                  "random_state": 42,
+                  "resample_rule": "h",
+                  "dropna": "any"
+                }
             }
           }
         }

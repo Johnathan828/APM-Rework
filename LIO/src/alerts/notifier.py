@@ -10,6 +10,7 @@ from email.mime.text import MIMEText
 from io import BytesIO
 from typing import Dict, Any, Optional, List, Tuple
 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -34,6 +35,12 @@ class Notifier:
     Uses:
       - Email_DEV when global_debug=True
       - Email when global_debug=False
+
+    Timezone behavior:
+      - Plots are rendered in a "display timezone"
+      - display_timezone precedence:
+          config.ini [Email/Email_DEV] display_timezone -> ssot["timezone"] -> UTC
+      - Email body includes a small footer with Display + UTC timestamps
     """
 
     def __init__(self, *, ssot: Dict[str, Any], sensor_name: str, logger, db, global_debug: bool):
@@ -44,7 +51,7 @@ class Notifier:
         self.global_debug = global_debug
 
         self.email_section = "Email_DEV" if global_debug else "Email"
-        s = db.settings  # IniSettings
+        s = db.settings  # IniSettings / ConfigParser-like
 
         self.from_address = s.get(self.email_section, "from_address")
         self.password = s.get(self.email_section, "password")
@@ -54,48 +61,22 @@ class Notifier:
         to_raw = s.get(self.email_section, "to_address", fallback="")
         self.to_addresses = [x.strip() for x in to_raw.split(",") if x.strip()]
 
-        self.tz_local = ZoneInfo("Africa/Johannesburg")
+        # Display timezone precedence: config.ini -> SSOT -> UTC
+        tz_name = (
+            s.get(self.email_section, "display_timezone", fallback=None)
+            or str(self.ssot.get("timezone", "UTC"))
+        )
+        self.display_tz = ZoneInfo(tz_name)
         self.tz_utc = ZoneInfo("UTC")
 
     # ---------------------------------------------------------------------
     # Formatting helpers
     # ---------------------------------------------------------------------
     def _ts_strings(self, ts_utc_naive: datetime) -> Tuple[str, str]:
-        # ts is stored UTC-naive in our runtime. Convert for display.
+        # runtime stores UTC-naive; convert for display + include UTC reference
         ts_utc = ts_utc_naive.replace(tzinfo=self.tz_utc)
-        ts_local = ts_utc.astimezone(self.tz_local)
-        return ts_local.strftime("%Y-%m-%d %H:%M:%S %Z"), ts_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
-
-    def _build_likely_cause_table(self, feature_contrib: Optional[pd.DataFrame]) -> str:
-        """
-        Legacy-style table:
-          - Uses max contribution per feature over the window
-          - Displays Description + "🔴 Likely Cause" / "🟢 Not Likely"
-        """
-        cfg = self.ssot.get(self.sensor_name, {}) or {}
-        features = cfg.get("Features", {}) or {}
-
-        if feature_contrib is None or feature_contrib.empty:
-            df = pd.DataFrame([{"Tag": "(none)", "Description": "(none)", "Anomaly Cause": "🟢 Not Likely"}])
-            return self._style_table(df)
-
-        # feature_contrib columns are displaynames, values 0/1 (currently)
-        max_vals = feature_contrib.max()
-
-        rows = []
-        for disp, v in max_vals.items():
-            meta = features.get(disp, {}) if isinstance(features, dict) else {}
-            desc = str(meta.get("description", disp)) if isinstance(meta, dict) else str(disp)
-            rows.append(
-                {
-                    "Tag": disp,
-                    "Description": desc,
-                    "Anomaly Cause": ("🔴 Likely Cause" if float(v) > 0 else "🟢 Not Likely"),
-                }
-            )
-
-        df = pd.DataFrame(rows)
-        return self._style_table(df)
+        ts_disp = ts_utc.astimezone(self.display_tz)
+        return ts_disp.strftime("%Y-%m-%d %H:%M:%S %Z"), ts_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
 
     def _style_table(self, df: pd.DataFrame) -> str:
         html = df.to_html(escape=False, index=False)
@@ -125,8 +106,40 @@ class Notifier:
         """
         return css + html
 
+    def _build_likely_cause_table(self, feature_contrib: Optional[pd.DataFrame]) -> str:
+        """
+        Legacy-style table:
+          - Uses max contribution per feature over the window
+          - Displays RAW TAG + Description + "🔴 Likely Cause" / "🟢 Not Likely"
+        """
+        cfg = self.ssot.get(self.sensor_name, {}) or {}
+        features = cfg.get("Features", {}) or {}
+
+        if feature_contrib is None or feature_contrib.empty:
+            df = pd.DataFrame([{"Tag": "(none)", "Description": "(none)", "Anomaly Cause": "🟢 Not Likely"}])
+            return self._style_table(df)
+
+        max_vals = feature_contrib.max()
+
+        rows = []
+        for disp, v in max_vals.items():
+            meta = features.get(disp, {}) if isinstance(features, dict) else {}
+            raw_tag = str(meta.get("tag", disp)) if isinstance(meta, dict) else str(disp)
+            desc = str(meta.get("description", disp)) if isinstance(meta, dict) else str(disp)
+
+            rows.append(
+                {
+                    "Tag": raw_tag,
+                    "Description": desc,
+                    "Anomaly Cause": ("🔴 Likely Cause" if float(v) > 0 else "🟢 Not Likely"),
+                }
+            )
+
+        df = pd.DataFrame(rows)
+        return self._style_table(df)
+
     # ---------------------------------------------------------------------
-    # Plotting (legacy-ish)
+    # Plotting helpers (FixedThresholds parity for now)
     # ---------------------------------------------------------------------
     def _score_fixed_thresholds(
         self,
@@ -135,11 +148,6 @@ class Notifier:
         sensor_cfg: Dict[str, Any],
         feature_displaynames_to_tags: Dict[str, str],
     ) -> Tuple[pd.Series, pd.DataFrame]:
-        """
-        Recompute FixedThresholds score purely for plotting (no MSSQL reads).
-        Same logic as FixedThresholdsModel:
-          score = 1 - mean( outside_bounds_flags )
-        """
         method_cfg = ((sensor_cfg.get("Method", {}) or {}).get("FixedThresholds", {}) or {})
         high_map = method_cfg.get("high", {}) or {}
         low_map = method_cfg.get("low", {}) or {}
@@ -177,61 +185,62 @@ class Notifier:
         feature_contrib = pd.DataFrame(contrib_cols, index=df_wide.index).fillna(0.0)
         return score, feature_contrib
 
-    def _compute_anomaly_ranges(
+    def _decorate_section_status(
         self,
         *,
         score: pd.Series,
-        section: pd.Series,
+        section_raw: pd.Series,
         alarm_thresh: float,
         filter_value: float,
-    ) -> List[Tuple[pd.Timestamp, pd.Timestamp]]:
+        startup_minutes: int,
+    ) -> pd.Series:
         """
-        Legacy-ish: anomaly where score < alarm_thresh AND section == open.
-        Returns contiguous ranges for shading.
+        Legacy-style status codes:
+          -1 = unknown (no data)
+           0 = section off
+           1 = on, no anomaly
+           2 = anomaly
+           3 = startup
         """
-        if score is None or score.empty:
-            return []
-        score = score.sort_index()
-        section = section.reindex(score.index).ffill().fillna(0.0)
+        idx = score.index
+        sec = section_raw.reindex(idx)
 
-        mask = (score < float(alarm_thresh)) & (section >= float(filter_value))
-        if not mask.any():
-            return []
+        out = pd.Series(index=idx, dtype=float)
+        out[:] = -1  # unknown by default
 
+        open_mask = sec >= float(filter_value)
+        out[open_mask.fillna(False)] = 1
+        out[(~open_mask).fillna(False)] = 0
+
+        # anomaly only when open
+        anomaly_mask = (score < float(alarm_thresh)) & (out == 1)
+        out[anomaly_mask] = 2
+
+        # startup window after closed->open transitions
+        if startup_minutes and int(startup_minutes) > 0:
+            prev_open = out.shift(1).isin([1, 2, 3])
+            now_open = out.isin([1, 2])
+            transitions = (~prev_open.fillna(False)) & (now_open.fillna(False))
+            for t in out.index[transitions]:
+                end = t + pd.Timedelta(minutes=int(startup_minutes))
+                out.loc[(out.index >= t) & (out.index <= end)] = 3
+
+        return out
+
+    def _mask_to_ranges(self, mask: pd.Series) -> List[Tuple[pd.Timestamp, pd.Timestamp]]:
+        if mask is None or mask.empty:
+            return []
+        mask = mask.fillna(False).astype(bool)
         ranges: List[Tuple[pd.Timestamp, pd.Timestamp]] = []
         start = None
-        for ts, is_on in mask.items():
-            if is_on and start is None:
+        for ts, on in mask.items():
+            if on and start is None:
                 start = ts
-            elif (not is_on) and start is not None:
+            elif (not on) and start is not None:
                 ranges.append((start, ts))
                 start = None
         if start is not None:
-            ranges.append((start, score.index.max()))
-        return ranges
-
-    def _compute_startup_ranges(
-        self,
-        *,
-        section: pd.Series,
-        filter_value: float,
-        startup_minutes: int,
-    ) -> List[Tuple[pd.Timestamp, pd.Timestamp]]:
-        """
-        Mark periods right after CLOSED->OPEN transition as "startup".
-        In legacy sample, they used 3 hours fixed; we use startup_period minutes from SSOT.
-        """
-        if startup_minutes <= 0 or section is None or section.empty:
-            return []
-
-        section = section.sort_index()
-        open_mask = section >= float(filter_value)
-        prev_open = open_mask.shift(1).fillna(False)
-        transitions = (~prev_open) & (open_mask)  # closed -> open
-
-        ranges: List[Tuple[pd.Timestamp, pd.Timestamp]] = []
-        for t in section.index[transitions]:
-            ranges.append((t, t + pd.Timedelta(minutes=int(startup_minutes))))
+            ranges.append((start, mask.index.max()))
         return ranges
 
     def _fig_to_base64(self, fig) -> str:
@@ -249,10 +258,6 @@ class Notifier:
         alarm_thresh: float,
         filter_value: float,
     ) -> PlotBundle:
-        """
-        Short plot: last ~10 hours
-        Long plot: past 4 weeks view (~672 hours)
-        """
         sensor = get_sensor(self.ssot, self.sensor_name)
         sensor_cfg = sensor.cfg
 
@@ -262,9 +267,8 @@ class Notifier:
             if isinstance(meta, dict) and meta.get("tag"):
                 feature_displaynames_to_tags[disp] = meta["tag"]
 
-        # Legacy numbers (debug changes window lengths; we mirror the idea)
         short_hours = 10
-        long_hours = 100 if self.global_debug else 672  # 4 weeks
+        long_hours = 100 if self.global_debug else 672  # 4 weeks (legacy-ish)
 
         def build_plot(hours: int, title_suffix: str) -> str:
             end = latest_ts
@@ -279,107 +283,196 @@ class Notifier:
                 ax.grid(True)
                 return self._fig_to_base64(fig)
 
-            # Standardize index
+            # Convert to DISPLAY timezone for plotting (then drop tz to keep matplotlib happy)
             df_wide = df_wide.copy()
-            df_wide.index = pd.to_datetime(df_wide.index, utc=True).tz_convert(None)
+            df_wide.index = pd.to_datetime(df_wide.index, utc=True).tz_convert(self.display_tz).tz_localize(None)
             df_wide = df_wide.sort_index()
 
-            filter_tag_series = filter_tag_series.copy()
-            filter_tag_series.index = pd.to_datetime(filter_tag_series.index, utc=True).tz_convert(None)
-            filter_tag_series = filter_tag_series.sort_index()
+            if filter_tag_series is None or len(getattr(filter_tag_series, "index", [])) == 0:
+                filter_tag_series = pd.Series(index=df_wide.index, data=np.nan, dtype=float)
+            else:
+                filter_tag_series = filter_tag_series.copy()
+                filter_tag_series.index = pd.to_datetime(filter_tag_series.index, utc=True).tz_convert(self.display_tz).tz_localize(None)
+                filter_tag_series = filter_tag_series.sort_index()
 
-            # Build score + contrib (FixedThresholds only for now)
-            score, feature_contrib = self._score_fixed_thresholds(
+            score, _fc = self._score_fixed_thresholds(
                 df_wide=df_wide,
                 sensor_cfg=sensor_cfg,
                 feature_displaynames_to_tags=feature_displaynames_to_tags,
             )
 
-            # Section status (open/closed)
-            section = filter_tag_series.reindex(score.index).ffill().fillna(0.0)
+            section_raw = filter_tag_series.reindex(score.index).ffill()
 
-            # Startup and anomaly ranges for shading
             startup_minutes = int((sensor_cfg.get("Other", {}) or {}).get("startup_period", 0))
-            startup_ranges = self._compute_startup_ranges(section=section, filter_value=filter_value, startup_minutes=startup_minutes)
-            anomaly_ranges = self._compute_anomaly_ranges(score=score, section=section, alarm_thresh=alarm_thresh, filter_value=filter_value)
 
-            # --- Figure layout: Section status strip + score + per-feature plots ---
-            feature_tags = list(feature_displaynames_to_tags.values())
-            n_feat = len(feature_tags)
+            section_status = self._decorate_section_status(
+                score=score,
+                section_raw=section_raw,
+                alarm_thresh=float(alarm_thresh),
+                filter_value=float(filter_value),
+                startup_minutes=startup_minutes,
+            )
 
-            fig_h = 8 + 1.2 * max(1, n_feat)
-            fig = plt.figure(figsize=(14, fig_h))
-            gs = fig.add_gridspec(nrows=(2 + n_feat), ncols=1, height_ratios=[0.4, 1.0] + [1.0] * n_feat)
+            # Figure layout: section + score + N features
+            n_feat = len(feature_displaynames_to_tags)
+            fig_h = 10 + 2 * max(1, n_feat)
+            fig, axes = plt.subplots(
+                n_feat + 2,
+                1,
+                figsize=(14, fig_h),
+                gridspec_kw={"height_ratios": [0.2, 1] + [1] * n_feat},
+            )
+            fig.subplots_adjust(hspace=0.8)
 
-            # Section status strip
-            ax0 = fig.add_subplot(gs[0, 0])
-            ax0.set_title("Section Status")
-            ax0.set_yticks([])
-            ax0.grid(True, axis="x")
-
-            # draw bars
-            for ts_i, val in section.fillna(0.0).items():
-                # grey off, green on, orange startup, red anomaly
-                color = "grey" if val < filter_value else "green"
+            # -------------------------
+            # Section Status (legacy bars)
+            # -------------------------
+            ax0 = axes[0]
+            for ts_i, val in section_status.fillna(-1).items():
+                if val in (-1, 0):
+                    color = "grey"
+                elif val == 2:
+                    color = "red"
+                elif val == 3:
+                    color = "orange"
+                else:
+                    color = "green"
                 ax0.barh(0, 1, left=ts_i, height=1, color=color, align="edge")
 
-            # overlay startup + anomaly shading on strip
-            for a, b in startup_ranges:
-                ax0.axvspan(a, b, alpha=0.25, color="orange")
-            for a, b in anomaly_ranges:
-                ax0.axvspan(a, b, alpha=0.25, color="red")
+            ax0.xaxis_date()
+            ax0.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d %H"))
+            ax0.set_xlim(section_status.index.min(), section_status.index.max())
+            ax0.set_yticks([])
+            ax0.set_xlabel("Date")
+            ax0.set_title("Section Status")
+            ax0.grid(True)
 
-            ax0.set_xlim(section.index.min(), section.index.max())
-            ax0.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d %H:%M"))
+            handles = [plt.Line2D([0], [0], color=c, lw=4) for c in ["grey", "red", "green", "orange"]]
+            labels = ["Section off", "Aomaly", "No Anomaly", "Startrup"]
+            ax0.legend(handles, labels, loc="best")
 
-            # Score plot
-            ax1 = fig.add_subplot(gs[1, 0], sharex=ax0)
-            ax1.plot(score.index, score.values, label="Health Score")
-            ax1.axhline(float(alarm_thresh), linestyle="--", label="Alarm Threshold")
-            for a, b in anomaly_ranges:
-                ax1.axvspan(a, b, alpha=0.25, color="red")
-            for a, b in startup_ranges:
-                ax1.axvspan(a, b, alpha=0.15, color="orange")
-            ax1.set_ylabel("Score")
-            ax1.set_title(f"System Health Score: {sensor_cfg.get('Model_Description', self.sensor_name)} ({title_suffix})")
+            # -------------------------
+            # Health Score (legacy-ish: percent scale + red anomaly spans excluding startup)
+            # -------------------------
+            ax1 = axes[1]
+            score_pct = score * 100.0
+            ax1.plot(score_pct.index, score_pct.values, label="Health Score", color="blue")
+            ax1.set_xlim(section_status.index.min(), section_status.index.max())
+            ax1.set_xlabel("Date")
+            ax1.set_ylabel("Health Score %")
+            ax1.set_title(f"System Health Score %: {sensor_cfg.get('Model_Description', self.sensor_name)}")
             ax1.grid(True)
             ax1.legend()
 
-            # Feature plots (raw values) with threshold lines
+            anomaly_ranges = self._mask_to_ranges(section_status == 2)
+            for a, b in anomaly_ranges:
+                # legacy: skip shading if startup exists inside the window
+                try:
+                    if (section_status.loc[a:b] == 3).any():
+                        continue
+                except Exception:
+                    pass
+                ax1.axvspan(a, b, color="red", alpha=0.3)
+
+            # -------------------------
+            # Per-feature plots: trendline + threshold window highlights (only when model is in anomaly)
+            # -------------------------
             method_cfg = ((sensor_cfg.get("Method", {}) or {}).get("FixedThresholds", {}) or {})
             high_map = method_cfg.get("high", {}) or {}
             low_map = method_cfg.get("low", {}) or {}
 
+            operating_mask = section_status.isin([1, 2])
+            filtered_df = df_wide.loc[operating_mask].copy()
+            filtered_df = filtered_df.dropna(how="any")
+
             for i, (disp, tag) in enumerate(feature_displaynames_to_tags.items()):
-                ax = fig.add_subplot(gs[2 + i, 0], sharex=ax0)
-                if tag in df_wide.columns:
-                    ax.plot(df_wide.index, pd.to_numeric(df_wide[tag], errors="coerce"), label=disp)
-                ax.grid(True)
+                ax = axes[i + 2]
 
-                hi = high_map.get(tag, None)
-                lo = low_map.get(tag, None)
-                if hi is not None:
-                    ax.axhline(float(hi), linestyle="--", label="High")
-                if lo is not None:
-                    ax.axhline(float(lo), linestyle="--", label="Low")
-
-                for a, b in anomaly_ranges:
-                    ax.axvspan(a, b, alpha=0.20, color="red")
-                for a, b in startup_ranges:
-                    ax.axvspan(a, b, alpha=0.12, color="orange")
+                s = pd.to_numeric(df_wide.get(tag, pd.Series(index=df_wide.index, dtype=float)), errors="coerce")
+                ax.plot(df_wide.index, s.values, label=disp)
 
                 meta = (sensor_cfg.get("Features", {}) or {}).get(disp, {}) or {}
                 unit_desc = str(meta.get("unit_description", ""))
                 unit = str(meta.get("unit", ""))
-                ax.set_ylabel(f"{unit_desc} ({unit})".strip())
+                ax.set_xlim(section_status.index.min(), section_status.index.max())
+                ax.set_xlabel("Datetime")
+                ax.set_ylabel(f"{unit_desc} :({unit})".strip())
                 ax.set_title(str(meta.get("description", disp)))
-                ax.legend(loc="upper right")
+                ax.grid(True)
 
-            fig.autofmt_xdate()
-            return self._fig_to_base64(fig)
+                # trendline (legacy: on filtered operating df)
+                if tag in filtered_df.columns and len(filtered_df.index) >= 4:
+                    y = pd.to_numeric(filtered_df[tag], errors="coerce").values
+                    x = np.arange(len(filtered_df.index))
+                    ok = np.isfinite(y)
+                    if ok.sum() >= 4:
+                        slope, intercept = np.polyfit(x[ok], y[ok], 1)
+                        trend = slope * x + intercept
+                        ax.plot(filtered_df.index, trend, label=f"{disp} Trendline", linestyle="--", color="orange")
+
+                # threshold windows
+                hi = high_map.get(tag, None)
+                lo = low_map.get(tag, None)
+
+                above_ranges: List[Tuple[pd.Timestamp, pd.Timestamp]] = []
+                below_ranges: List[Tuple[pd.Timestamp, pd.Timestamp]] = []
+
+                if tag in filtered_df.columns and len(filtered_df.index) >= 2:
+                    sf = pd.to_numeric(filtered_df[tag], errors="coerce")
+
+                    if hi is not None:
+                        in_range = False
+                        start_ts = None
+                        for j in range(1, len(sf.index)):
+                            if (sf.iloc[j] > float(hi)) and (not in_range):
+                                start_ts = sf.index[j]
+                                in_range = True
+                            elif (sf.iloc[j] <= float(hi)) and in_range:
+                                above_ranges.append((start_ts, sf.index[j]))
+                                in_range = False
+
+                    if lo is not None:
+                        in_range = False
+                        start_ts = None
+                        for j in range(1, len(sf.index)):
+                            if (sf.iloc[j] < float(lo)) and (not in_range):
+                                start_ts = sf.index[j]
+                                in_range = True
+                            elif (sf.iloc[j] >= float(lo)) and in_range:
+                                below_ranges.append((start_ts, sf.index[j]))
+                                in_range = False
+
+                # highlight only if model is anomaly (section_status==2) in that window
+                for a, b in above_ranges:
+                    try:
+                        if (section_status.loc[a:b] == 2).any():
+                            ax.axvspan(a, b, color="red", alpha=0.2)
+                    except Exception:
+                        pass
+                for a, b in below_ranges:
+                    try:
+                        if (section_status.loc[a:b] == 2).any():
+                            ax.axvspan(a, b, color="red", alpha=0.2)
+                    except Exception:
+                        pass
+
+                ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=2)
+
+            buf = BytesIO()
+            fig.savefig(buf, format="png", bbox_inches="tight")
+            if self.global_debug:
+                try:
+                    plt.show()
+                except Exception:
+                    pass
+            buf.seek(0)
+            plt.close(fig)
+
+            return base64.b64encode(buf.read()).decode("utf-8")
 
         short_b64 = build_plot(short_hours, "Short View")
-        long_b64 = build_plot(long_hours, "Past 4 Weeks View" if not self.global_debug else "Long View (Debug)")
+        long_title = "Past 4 Weeks View" if not self.global_debug else "Long View (Debug)"
+        long_b64 = build_plot(long_hours, long_title)
         return PlotBundle(short_plot_b64=short_b64, long_plot_b64=long_b64)
 
     # ---------------------------------------------------------------------
@@ -392,45 +485,47 @@ class Notifier:
         latest_ts: datetime,
         feature_contrib: Optional[pd.DataFrame],
         plots: PlotBundle,
+        alarm_thresh: float,
     ) -> str:
         cfg = self.ssot.get(self.sensor_name, {}) or {}
         model_desc = str(cfg.get("Model_Description", self.sensor_name))
 
         feature_table_html = self._build_likely_cause_table(feature_contrib)
-        ts_local_s, _ts_utc_s = self._ts_strings(latest_ts)
 
-        # Legacy-like body copy
-        body = f"""🚨 Alert! 🚨<br><br>
-        We have detected a sustained significant deviation in the operating conditions of the: <b>{model_desc}</b>.<br>
-        Please review the system status to restore stability.<br><br>
-        The table below highlights the importance of each measured detector:<br>
-        {feature_table_html}<br><br>
+        ts_disp_s, ts_utc_s = self._ts_strings(latest_ts)
 
-        <img src="data:image/png;base64,{plots.short_plot_b64}" alt="Plot" /><br><br>
+        # Match legacy copy closely + small timestamp footer (display + UTC)
+        body = f"""🚨 Alert! 🚨<br><br> 
+                    We have detected a sustained significant deviation in the operating conditions of the: {model_desc}. 
+                    Please review the system status to restore stability <br><br>                   
+                    The table below highlights the importance of each measured detector <br>
+                    {feature_table_html}<br><br>
 
-        <h3 style="
-            background-color: white;
-            color: #6a11cb;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            font-family: Arial, sans-serif;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            margin: 20px auto;
-            width: 30%;
-        ">
-            Past 4 Weeks View
-        </h3>
-        <img src="data:image/png;base64,{plots.long_plot_b64}" alt="Plot" /><br><br>
+                    <img src="data:image/png;base64,{plots.short_plot_b64}" alt="Plot" />
+                    <br><br>
+                        <h3 style="
+                            background-color: white;
+                            color: #6a11cb;
+                            padding: 15px;
+                            border-radius: 8px;
+                            text-align: center;
+                            font-family: Arial, sans-serif;
+                            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+                            margin: 20px auto;
+                            width: 20%;
+                        ">
+                            Past 4 Weeks View
+                        </h3>
+                        <br><br>
+                    <img src="data:image/png;base64,{plots.long_plot_b64}" alt="Plot" />
+                    <br><br>
+                    <div style="font-family: Arial, sans-serif; color:#444; font-size:12px;">
+                      Timestamp (Display): {ts_disp_s}<br>
+                      Timestamp (UTC): {ts_utc_s}
+                    </div>
+                    <br><br>
 
-        <div style="font-family: Arial, sans-serif; color:#444; font-size:12px;">
-          Timestamp (Local): {ts_local_s}
-        </div>
-
-        You can ask us any questions you might have by posting them on the
-        <a href="https://neuromine.atlassian.net/servicedesk/customer/portal/5">Jira Portal</a>.
-        """
-
+                    You can ask us any questions you might have by posting them on the <a href="https://neuromine.atlassian.net/servicedesk/customer/portal/5">Jira Portal</a>."""
         return body
 
     def _send_email(self, *, subject: str, html: str, use_high_priority: bool = True) -> None:
@@ -467,11 +562,12 @@ class Notifier:
         self,
         *,
         score: float,
-        section_status: float,  # kept for signature compatibility (not required in legacy format)
+        section_status: float,  # kept for compatibility
         latest_ts: datetime,
         feature_contrib: Optional[pd.DataFrame],
-        reason: str,  # kept for signature compatibility
+        reason: str,  # kept for compatibility
         alarm_thresh: Optional[float] = None,
+        filter_value: Optional[float] = None,
     ) -> None:
         cfg = self.ssot.get(self.sensor_name, {}) or {}
         site = str(self.ssot.get("site", "SITE"))
@@ -479,12 +575,20 @@ class Notifier:
 
         subject = f"{site} DEBUG TEST EMAIL: {model_desc} model"
 
-        # Use SSOT alarm thresh for plot threshold reference
-        alarm_thresh = float(((cfg.get("Other", {}) or {}).get("alarm_thresh", 0.75)))
-        filter_value = float(((cfg.get("filter_tag", {}) or {}).get("filter_value", 0.9)))
+        # Prefer provided values (from AlertEngine), else SSOT
+        if alarm_thresh is None:
+            alarm_thresh = float(((cfg.get("Other", {}) or {}).get("alarm_thresh", 0.75)))
+        if filter_value is None:
+            filter_value = float(((cfg.get("filter_tag", {}) or {}).get("filter_value", 0.9)))
 
-        plots = self._generate_plots(latest_ts=latest_ts, alarm_thresh=alarm_thresh, filter_value=filter_value)
-        html = self._build_html(score=score, latest_ts=latest_ts, feature_contrib=feature_contrib, plots=plots)
+        plots = self._generate_plots(latest_ts=latest_ts, alarm_thresh=float(alarm_thresh), filter_value=float(filter_value))
+        html = self._build_html(
+            score=score,
+            latest_ts=latest_ts,
+            feature_contrib=feature_contrib,
+            plots=plots,
+            alarm_thresh=float(alarm_thresh),
+        )
 
         self._send_email(subject=subject, html=html, use_high_priority=False)
 
@@ -492,11 +596,12 @@ class Notifier:
         self,
         *,
         score: float,
-        section_status: float,  # kept for signature compatibility
+        section_status: float,  # kept for compatibility
         latest_ts: datetime,
         feature_contrib: Optional[pd.DataFrame],
-        reason: str,  # kept for signature compatibility
+        reason: str,  # kept for compatibility
         alarm_thresh: Optional[float] = None,
+        filter_value: Optional[float] = None,
     ) -> None:
         cfg = self.ssot.get(self.sensor_name, {}) or {}
         site = str(self.ssot.get("site", "SITE"))
@@ -504,10 +609,19 @@ class Notifier:
 
         subject = f"{site} Anomaly Detected by: {model_desc} model"
 
-        alarm_thresh = float(((cfg.get("Other", {}) or {}).get("alarm_thresh", 0.75)))
-        filter_value = float(((cfg.get("filter_tag", {}) or {}).get("filter_value", 0.9)))
+        # Prefer provided values (from AlertEngine), else SSOT
+        if alarm_thresh is None:
+            alarm_thresh = float(((cfg.get("Other", {}) or {}).get("alarm_thresh", 0.75)))
+        if filter_value is None:
+            filter_value = float(((cfg.get("filter_tag", {}) or {}).get("filter_value", 0.9)))
 
-        plots = self._generate_plots(latest_ts=latest_ts, alarm_thresh=alarm_thresh, filter_value=filter_value)
-        html = self._build_html(score=score, latest_ts=latest_ts, feature_contrib=feature_contrib, plots=plots)
+        plots = self._generate_plots(latest_ts=latest_ts, alarm_thresh=float(alarm_thresh), filter_value=float(filter_value))
+        html = self._build_html(
+            score=score,
+            latest_ts=latest_ts,
+            feature_contrib=feature_contrib,
+            plots=plots,
+            alarm_thresh=float(alarm_thresh),
+        )
 
         self._send_email(subject=subject, html=html, use_high_priority=True)
