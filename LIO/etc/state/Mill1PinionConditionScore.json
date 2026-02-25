@@ -1,4 +1,7 @@
 {
-  "episode_active": true,
-  "episode_started_at": "2026-02-24T12:25:45"
+  "email_in_flight": false,
+  "email_in_flight_since": null,
+  "episode_active": false,
+  "episode_started_at": null,
+  "last_sent_at": "2026-02-25T08:44:22.567400"
 }

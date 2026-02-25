@@ -63,7 +63,7 @@
             "alarm_thresh": 0.95,
             "identifier": "sourceidentifier",
             "model_outputs_path":"../LIO_Mill_1_Pinion_Monitoring/etc/model_outputs",
-            "sampling_freq_seconds": 60,
+            "sampling_freq_seconds": 15,
             "sampling_window": 1,
             "alert_holding_minutes": 15,
             "startup_period": 3,
@@ -73,11 +73,12 @@
             "training_months": 6,
             "training_months_freq": 1,
             "normal_op_window_minutes": 120,
-            "anomaly_eval_window_minutes": 15
+            "anomaly_eval_window_minutes": 15,
+            "email_inflight_timeout_minutes": 30
           },
           "Method": {
             "FixedThresholds": {
-              "Active": true,
+              "Active": false,
               "high": {
                 "ns=3;s=\"AI_200-TT-042G\".\"OUT_EU\"": 68.24793004989624,
                 "ns=3;s=\"AI_200-TT-042H\".\"OUT_EU\"": 76.01273202896118,
@@ -94,7 +95,7 @@
               }
             },
             "StatisticalThresholds": {
-                "Active": false,
+                "Active": true,
                 "Training": {
                   "pull_interval": "1 minutes",
                   "mode": "quantile",
@@ -198,7 +199,7 @@
             "alarm_thresh": 0.75,
             "identifier": "sourceidentifier",
             "model_outputs_path":"../LIO_Mill_1_Trunnion_Monitoring/etc/model_outputs",
-            "sampling_freq_seconds": 60,
+            "sampling_freq_seconds": 15,
             "sampling_window": 1,
             "alert_holding_minutes": 15,
             "startup_period": 3,
@@ -208,7 +209,8 @@
             "training_months": 6,
             "training_months_freq": 1,
             "normal_op_window_minutes": 120,
-            "anomaly_eval_window_minutes": 15
+            "anomaly_eval_window_minutes": 15,
+            "email_inflight_timeout_minutes": 30
           },
           "Method": {
             "FixedThresholds": {
@@ -322,7 +324,7 @@
             "alarm_thresh": 0.75,
             "identifier": "sourceidentifier",
             "model_outputs_path":"../LIO_Mill_1_Motor_Monitoring/etc/model_outputs",
-            "sampling_freq_seconds": 60,
+            "sampling_freq_seconds": 15,
             "sampling_window": 1,
             "alert_holding_minutes": 15,
             "startup_period": 3,
@@ -332,7 +334,8 @@
             "training_months": 6,
             "training_months_freq": 1,
             "normal_op_window_minutes": 120,
-            "anomaly_eval_window_minutes": 15
+            "anomaly_eval_window_minutes": 15,
+            "email_inflight_timeout_minutes": 30
           },
           "Method": {
             "FixedThresholds": {
@@ -457,7 +460,7 @@
             "alarm_thresh": 0.75,
             "identifier": "sourceidentifier",
             "model_outputs_path":"../LIO_Mill_1_Gearbox_Monitoring/etc/model_outputs",
-            "sampling_freq_seconds": 60,
+            "sampling_freq_seconds": 15,
             "sampling_window": 1,
             "alert_holding_minutes": 15,
             "startup_period": 3,
@@ -467,7 +470,8 @@
             "training_months": 6,
             "training_months_freq": 1,
             "normal_op_window_minutes": 120,
-            "anomaly_eval_window_minutes": 15
+            "anomaly_eval_window_minutes": 15,
+            "email_inflight_timeout_minutes": 30
           },
           "Method": {
             "FixedThresholds": {

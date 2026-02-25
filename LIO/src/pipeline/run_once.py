@@ -53,7 +53,7 @@ def run_sensor_once(
         if isinstance(meta, dict) and meta.get("tag"):
             feature_displaynames_to_tags[disp] = meta["tag"]
 
-    # --- MODEL (runtime rollback: FixedThresholds only) ---
+    # --- MODEL ---
     model, method_name, method_cfg = build_model(sensor_cfg=sensor_cfg, sensor_name=sensor_name)
     logger.info(f"{sensor_name}: active_method={method_name}")
 
@@ -69,15 +69,13 @@ def run_sensor_once(
     score_series.index = pd.to_datetime(score_series.index, utc=True).tz_convert(None)
     score_series = score_series.sort_index()
 
-    # --- Section status aligned to score timestamps (FIX: align tz/index first) ---
+    # --- Section status aligned to score timestamps ---
     ft_name = sensor.filter_tag_displayname or f"{sensor_name}_Section_Status"
 
-    # Standardise filter_tag_series index to UTC naive FIRST
     filter_tag_series = filter_tag_series.copy()
     filter_tag_series.index = pd.to_datetime(filter_tag_series.index, utc=True).tz_convert(None)
     filter_tag_series = filter_tag_series.sort_index()
 
-    # Now reindex safely onto score index
     section_series = filter_tag_series.reindex(score_series.index).ffill().fillna(0.0)
 
     # --- Write ONLY latest point per run ---
@@ -106,7 +104,7 @@ def run_sensor_once(
         meta=None,
     )
 
-    # Feature contributions (latest only)
+    # Feature contributions (latest only to MSSQL)
     feature_contrib = result.feature_contrib if result.feature_contrib is not None else pd.DataFrame()
     if not feature_contrib.empty:
         feature_contrib = feature_contrib.copy()
@@ -135,6 +133,18 @@ def run_sensor_once(
     notifier = Notifier(ssot=ssot, sensor_name=sensor_name, logger=logger, db=db, global_debug=global_debug)
     event_logger = EventLogger(ssot=ssot, sensor_name=sensor_name, logger=logger, db=db)
 
+    # ------------------------------------------------------------------
+    # Build a "legacy-like" email feature_contrib window:
+    # Use last alert_holding_minutes so likely-cause uses max() over window.
+    # ------------------------------------------------------------------
+    holding_minutes_for_table = int(sensor.other.get("alert_holding_minutes", 15))
+    window_start_ts = latest_ts - pd.Timedelta(minutes=holding_minutes_for_table)
+
+    if feature_contrib is not None and not feature_contrib.empty:
+        feature_contrib_email = feature_contrib.loc[feature_contrib.index >= window_start_ts].copy()
+    else:
+        feature_contrib_email = feature_contrib
+
     # SENSOR DEBUG: send test email every run
     if sensor_debug:
         logger.warning(f"{sensor_name}: SENSOR DEBUG ENABLED -> sending TEST email every run")
@@ -142,53 +152,124 @@ def run_sensor_once(
             score=float(decision.latest_score),
             section_status=float(decision.latest_section_status),
             latest_ts=latest_ts.to_pydatetime() if hasattr(latest_ts, "to_pydatetime") else latest_ts,
-            feature_contrib=feature_contrib,
+            feature_contrib=feature_contrib_email,  # <-- windowed
             reason=decision.reason,
+            alarm_thresh=float(decision.alarm_thresh),
+            filter_value=float(decision.filter_value),
         )
         return
 
-    # Option B: once per episode
+    # ------------------------------------------------------------------
+    # LEGACY-LIKE ALERTING: cooldown repeats + per-sensor "email in flight" guard
+    # - send immediately when decision.should_alert=True
+    # - repeat at most once per alert_holding_minutes while anomaly persists
+    # - prevent overlapping emails for this sensor using state lock
+    # ------------------------------------------------------------------
     store = StateStore(base_dir=site_root / "etc" / "state")
     state = store.load(sensor_name)
 
-    if decision.should_alert:
-        if not state.get("episode_active", False):
-            state["episode_active"] = True
-            state["episode_started_at"] = decision.anomaly_started_at.isoformat() if decision.anomaly_started_at else None
-            store.save(sensor_name, state)
+    holding_minutes = int(sensor.other.get("alert_holding_minutes", 15))
+    email_inflight_timeout_minutes = int(sensor.other.get("email_inflight_timeout_minutes", 30))
+    now_utc = _utc_now_naive()
 
+    def _parse_iso_dt(s: str):
+        try:
+            return datetime.fromisoformat(s.replace("Z", ""))
+        except Exception:
+            return None
+
+    if decision.should_alert:
+        # Cooldown gate (legacy-like)
+        last_sent_at = _parse_iso_dt(str(state.get("last_sent_at", "")))
+        if last_sent_at is not None:
+            mins_since = (now_utc - last_sent_at).total_seconds() / 60.0
+            if mins_since < holding_minutes:
+                logger.info(
+                    f"{sensor_name}: alert suppressed (cooldown) | "
+                    f"mins_since_last={mins_since:.2f} < holding={holding_minutes}"
+                )
+                return
+
+        # In-flight guard (prevents overlapping email generation/sends for this sensor)
+        in_flight = bool(state.get("email_in_flight", False))
+        in_flight_since_raw = str(state.get("email_in_flight_since", "")) if state.get("email_in_flight_since") else ""
+        in_flight_since = _parse_iso_dt(in_flight_since_raw) if in_flight_since_raw else None
+
+        if in_flight:
+            if in_flight_since is None:
+                # malformed timestamp -> reset
+                state["email_in_flight"] = False
+                state["email_in_flight_since"] = None
+                store.save(sensor_name, state)
+            else:
+                mins_inflight = (now_utc - in_flight_since).total_seconds() / 60.0
+                if mins_inflight < email_inflight_timeout_minutes:
+                    logger.warning(
+                        f"{sensor_name}: email suppressed (in_flight) | "
+                        f"mins_inflight={mins_inflight:.2f} < timeout={email_inflight_timeout_minutes}"
+                    )
+                    return
+                else:
+                    logger.warning(
+                        f"{sensor_name}: email_in_flight stale -> resetting | "
+                        f"mins_inflight={mins_inflight:.2f} >= timeout={email_inflight_timeout_minutes}"
+                    )
+                    state["email_in_flight"] = False
+                    state["email_in_flight_since"] = None
+                    store.save(sensor_name, state)
+
+        # Log event (optional)
+        try:
             event_logger.log_event(
                 score=float(decision.latest_score),
                 level=1,
-                trigger_time=_utc_now_naive(),
+                trigger_time=now_utc,
                 latest_ts=latest_ts.to_pydatetime() if hasattr(latest_ts, "to_pydatetime") else None,
-                feature_contrib=feature_contrib,
+                feature_contrib=feature_contrib_email,  # <-- windowed
                 details={
                     "reason": decision.reason,
                     "method": method_name,
-                    "alarm_thresh": decision.alarm_thresh,
+                    "alarm_thresh": float(decision.alarm_thresh),
                     "section_status": float(decision.latest_section_status),
+                    "cooldown_minutes": holding_minutes,
                 },
             )
+            logger.info(f"{sensor_name}: event logged to NewApmModelEvents")
+        except Exception as e:
+            logger.exception(f"{sensor_name}: event logging failed (continuing to email) | err={e}")
 
+        # Set in-flight lock BEFORE heavy work (plots + SMTP)
+        state["email_in_flight"] = True
+        state["email_in_flight_since"] = now_utc.isoformat()
+        store.save(sensor_name, state)
+
+        # Send email; on failure, do NOT update last_sent_at (so we retry next tick)
+        try:
             notifier.send_alert(
                 score=float(decision.latest_score),
                 section_status=float(decision.latest_section_status),
                 latest_ts=latest_ts.to_pydatetime() if hasattr(latest_ts, "to_pydatetime") else latest_ts,
-                feature_contrib=feature_contrib,
+                feature_contrib=feature_contrib_email,  # <-- windowed
                 reason=decision.reason,
+                alarm_thresh=float(decision.alarm_thresh),
+                filter_value=float(decision.filter_value),
             )
-            logger.warning(f"{sensor_name}: ALERT SENT (episode start) | score={decision.latest_score:.3f}")
-        else:
-            logger.info(f"{sensor_name}: alert suppressed (episode already active) | score={decision.latest_score:.3f}")
-    else:
-        # Recovery closes episode
-        if state.get("episode_active", False) and decision.reason in ("score_normal", "gate_closed"):
-            state["episode_active"] = False
-            state["episode_started_at"] = None
+        except Exception as e:
+            logger.exception(f"{sensor_name}: ALERT FAILED (email) | err={e}")
+            return
+        finally:
+            # Always clear in-flight lock
+            state["email_in_flight"] = False
+            state["email_in_flight_since"] = None
             store.save(sensor_name, state)
-            logger.info(f"{sensor_name}: episode closed (recovered)")
 
+        # Update cooldown timestamp AFTER success
+        state["last_sent_at"] = now_utc.isoformat()
+        store.save(sensor_name, state)
+
+        logger.warning(f"{sensor_name}: ALERT SENT (cooldown) | score={decision.latest_score:.3f}")
+
+    else:
         logger.info(
             f"{sensor_name}: no alert | reason={decision.reason} | score={decision.latest_score:.3f} | sec={decision.latest_section_status:.3f}"
         )
