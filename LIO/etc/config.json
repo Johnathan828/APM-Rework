@@ -108,7 +108,7 @@
             "IsolationForest": {
                 "Active": false,
                 "Training": {
-                  "pull_interval": "15 minutes",
+                  "pull_interval": "1 minutes",
                   "n_estimators": 200,
                   "contamination": 0.01,
                   "max_samples": "auto",
@@ -179,7 +179,7 @@
             "description": "Mill1TrunnionConditionScore_Section_Status",
             "tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
             "filter_value": 0.9,
-            "alarm_thresh": 0.75
+            "alarm_thresh": 0.85
           },
           "shutdown_rules": {
               "tags": {
@@ -251,7 +251,7 @@
             "IsolationForest": {
                 "Active": false,
                 "Training": {
-                  "pull_interval": "15 minutes",
+                  "pull_interval": "1 minutes",
                   "n_estimators": 200,
                   "contamination": 0.01,
                   "max_samples": "auto",
@@ -369,7 +369,7 @@
             "IsolationForest": {
                 "Active": false,
                 "Training": {
-                  "pull_interval": "15 minutes",
+                  "pull_interval": "1 minutes",
                   "n_estimators": 200,
                   "contamination": 0.01,
                   "max_samples": "auto",
@@ -511,7 +511,7 @@
             "IsolationForest": {
                 "Active": false,
                 "Training": {
-                  "pull_interval": "15 minutes",
+                  "pull_interval": "1 minutes",
                   "n_estimators": 200,
                   "contamination": 0.01,
                   "max_samples": "auto",

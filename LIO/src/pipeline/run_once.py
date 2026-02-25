@@ -1,4 +1,3 @@
-# APM/LIO/src/pipeline/run_once.py
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -54,7 +53,9 @@ def run_sensor_once(
             feature_displaynames_to_tags[disp] = meta["tag"]
 
     # --- MODEL ---
-    model, method_name, method_cfg = build_model(sensor_cfg=sensor_cfg, sensor_name=sensor_name)
+    model, method_name, method_cfg = build_model(
+        sensor_cfg=sensor_cfg, sensor_name=sensor_name, site_root=site_root
+    )
     logger.info(f"{sensor_name}: active_method={method_name}")
 
     result = model.score(df_wide=df_wide, feature_displaynames_to_tags=feature_displaynames_to_tags)
@@ -145,6 +146,46 @@ def run_sensor_once(
     else:
         feature_contrib_email = feature_contrib
 
+    # ------------------------------------------------------------------
+    # Email context for Detection Mode + Trigger column (WINDOW-BASED)
+    # ------------------------------------------------------------------
+    pretty_method = {
+        "FixedThresholds": "Fixed Thresholds",
+        "StatisticalThresholds": "Statistical Thresholds",
+        "IsolationForest": "Isolation Forest",
+    }.get(method_name, method_name)
+
+    # Build a windowed df_wide aligned to UTC-naive + same window as likely-cause table
+    df_wide_window = None
+    try:
+        df_wide2 = df_wide.copy()
+        df_wide2.index = pd.to_datetime(df_wide2.index, utc=True).tz_convert(None)
+        df_wide2 = df_wide2.sort_index()
+        df_wide_window = df_wide2.loc[df_wide2.index >= window_start_ts].copy()
+    except Exception:
+        df_wide_window = None
+
+    # Threshold maps (for trigger text)
+    thr_high = {}
+    thr_low = {}
+    if method_name == "FixedThresholds":
+        thr_high = (method_cfg.get("high", {}) or {})
+        thr_low = (method_cfg.get("low", {}) or {})
+    elif method_name == "StatisticalThresholds":
+        thr_high = getattr(model, "high_map", {}) or {}
+        thr_low = getattr(model, "low_map", {}) or {}
+
+    trigger_context = {
+        "pretty_method": pretty_method,
+        # raw values WINDOW (tag -> pd.Series)
+        "raw_window_by_tag": {
+            tag: pd.to_numeric(df_wide_window[tag], errors="coerce")
+            for tag in feature_displaynames_to_tags.values()
+            if df_wide_window is not None and tag in df_wide_window.columns
+        },
+        "thresholds": {"high": thr_high, "low": thr_low},
+    }
+
     # SENSOR DEBUG: send test email every run
     if sensor_debug:
         logger.warning(f"{sensor_name}: SENSOR DEBUG ENABLED -> sending TEST email every run")
@@ -156,6 +197,8 @@ def run_sensor_once(
             reason=decision.reason,
             alarm_thresh=float(decision.alarm_thresh),
             filter_value=float(decision.filter_value),
+            method_name=method_name,
+            trigger_context=trigger_context,
         )
         return
 
@@ -253,6 +296,8 @@ def run_sensor_once(
                 reason=decision.reason,
                 alarm_thresh=float(decision.alarm_thresh),
                 filter_value=float(decision.filter_value),
+                method_name=method_name,
+                trigger_context=trigger_context,
             )
         except Exception as e:
             logger.exception(f"{sensor_name}: ALERT FAILED (email) | err={e}")

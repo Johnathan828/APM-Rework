@@ -1,4 +1,3 @@
-# APM/LIO/src/alerts/notifier.py
 from __future__ import annotations
 
 import base64
@@ -32,6 +31,7 @@ class Notifier:
       - High priority headers
       - Emoji body + "Likely Cause" table
       - Two embedded plots (short + past 4 weeks)
+
     Uses:
       - Email_DEV when global_debug=True
       - Email when global_debug=False
@@ -62,10 +62,7 @@ class Notifier:
         self.to_addresses = [x.strip() for x in to_raw.split(",") if x.strip()]
 
         # Display timezone precedence: config.ini -> SSOT -> UTC
-        tz_name = (
-            s.get(self.email_section, "display_timezone", fallback=None)
-            or str(self.ssot.get("timezone", "UTC"))
-        )
+        tz_name = (s.get(self.email_section, "display_timezone", fallback=None) or str(self.ssot.get("timezone", "UTC")))
         self.display_tz = ZoneInfo(tz_name)
         self.tz_utc = ZoneInfo("UTC")
 
@@ -105,12 +102,85 @@ class Notifier:
         """
         return css + html
 
-    def _build_likely_cause_table(self, feature_contrib: Optional[pd.DataFrame]) -> str:
+    def _trigger_text(
+        self,
+        *,
+        method_name: str,
+        raw_tag: str,
+        is_likely: bool,
+        trigger_context: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Trigger column text rules (WINDOW-BASED):
+
+        Threshold methods (FixedThresholds / StatisticalThresholds):
+          - if ANY value in window > high -> "> High Threshold: <HIGH_THRESHOLD_VALUE>"
+          - elif ANY value in window < low -> "< Low Threshold: <LOW_THRESHOLD_VALUE>"
+          - else -> "Not Triggered"
+        Only the THRESHOLD value is shown (not the raw value).
+
+        Non-threshold methods:
+          - default: "Triggered by Model" for Likely Cause rows
+          - non-likely rows: "Not Triggered"
+        """
+        if not is_likely:
+            return "Not Triggered"
+
+        if method_name in ("FixedThresholds", "StatisticalThresholds"):
+            ctx = trigger_context or {}
+
+            raw_window_by_tag = (ctx.get("raw_window_by_tag") or {})
+            s = raw_window_by_tag.get(raw_tag, None)
+
+            thr = (ctx.get("thresholds") or {})
+            thr_high = (thr.get("high") or {})
+            thr_low = (thr.get("low") or {})
+
+            hi = thr_high.get(raw_tag, None)
+            lo = thr_low.get(raw_tag, None)
+
+            try:
+                if s is not None and hi is not None:
+                    s_num = pd.to_numeric(s, errors="coerce")
+                    if (s_num > float(hi)).fillna(False).any():
+                        return f"> High Threshold: {float(hi):.2f}"
+
+                if s is not None and lo is not None:
+                    s_num = pd.to_numeric(s, errors="coerce")
+                    if (s_num < float(lo)).fillna(False).any():
+                        return f"< Low Threshold: {float(lo):.2f}"
+            except Exception:
+                pass
+
+            return "Not Triggered"
+
+        return "Triggered by Model"
+
+    def _build_likely_cause_table(
+        self,
+        feature_contrib: Optional[pd.DataFrame],
+        *,
+        method_name: str,
+        trigger_context: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Table with 4 columns:
+          Tag | Description | Anomaly Cause | Trigger
+        """
         cfg = self.ssot.get(self.sensor_name, {}) or {}
         features = cfg.get("Features", {}) or {}
 
         if feature_contrib is None or feature_contrib.empty:
-            df = pd.DataFrame([{"Tag": "(none)", "Description": "(none)", "Anomaly Cause": "🟢 Not Likely"}])
+            df = pd.DataFrame(
+                [
+                    {
+                        "Tag": "(none)",
+                        "Description": "(none)",
+                        "Anomaly Cause": "🟢 Not Likely",
+                        "Trigger": "Not Triggered",
+                    }
+                ]
+            )
             return self._style_table(df)
 
         max_vals = feature_contrib.max()
@@ -120,11 +190,23 @@ class Notifier:
             meta = features.get(disp, {}) if isinstance(features, dict) else {}
             raw_tag = str(meta.get("tag", disp)) if isinstance(meta, dict) else str(disp)
             desc = str(meta.get("description", disp)) if isinstance(meta, dict) else str(disp)
+
+            is_likely = float(v) > 0.0
+            cause = "🔴 Likely Cause" if is_likely else "🟢 Not Likely"
+
+            trigger = self._trigger_text(
+                method_name=method_name,
+                raw_tag=raw_tag,
+                is_likely=is_likely,
+                trigger_context=trigger_context,
+            )
+
             rows.append(
                 {
                     "Tag": raw_tag,
                     "Description": desc,
-                    "Anomaly Cause": ("🔴 Likely Cause" if float(v) > 0 else "🟢 Not Likely"),
+                    "Anomaly Cause": cause,
+                    "Trigger": trigger,
                 }
             )
 
@@ -274,7 +356,11 @@ class Notifier:
                 filter_tag_series = pd.Series(index=df_wide.index, data=np.nan, dtype=float)
             else:
                 filter_tag_series = filter_tag_series.copy()
-                filter_tag_series.index = pd.to_datetime(filter_tag_series.index, utc=True).tz_convert(self.display_tz).tz_localize(None)
+                filter_tag_series.index = (
+                    pd.to_datetime(filter_tag_series.index, utc=True)
+                    .tz_convert(self.display_tz)
+                    .tz_localize(None)
+                )
                 filter_tag_series = filter_tag_series.sort_index()
 
             score, _fc = self._score_fixed_thresholds(
@@ -284,7 +370,6 @@ class Notifier:
             )
 
             section_raw = filter_tag_series.reindex(score.index).ffill()
-
             startup_minutes = int((sensor_cfg.get("Other", {}) or {}).get("startup_period", 0))
 
             section_status = self._decorate_section_status(
@@ -306,9 +391,7 @@ class Notifier:
             )
             fig.subplots_adjust(hspace=0.8)
 
-            # -------------------------
-            # Section Status (legacy bars)
-            # -------------------------
+            # Section Status
             ax0 = axes[0]
             for ts_i, val in section_status.fillna(-1).items():
                 if val in (-1, 0):
@@ -333,9 +416,7 @@ class Notifier:
             labels = ["Section off", "Aomaly", "No Anomaly", "Startrup"]
             ax0.legend(handles, labels, loc="best")
 
-            # -------------------------
-            # Health Score (%)
-            # -------------------------
+            # Health Score
             ax1 = axes[1]
             score_pct = score * 100.0
             ax1.plot(score_pct.index, score_pct.values, label="Health Score", color="blue")
@@ -355,9 +436,7 @@ class Notifier:
                     pass
                 ax1.axvspan(a, b, color="red", alpha=0.3)
 
-            # -------------------------
-            # Per-feature plots: trendline + highlight threshold breaches while section ON
-            # -------------------------
+            # Per-feature plots: highlight threshold breaches while section ON
             method_cfg = ((sensor_cfg.get("Method", {}) or {}).get("FixedThresholds", {}) or {})
             high_map = method_cfg.get("high", {}) or {}
             low_map = method_cfg.get("low", {}) or {}
@@ -381,7 +460,7 @@ class Notifier:
                 ax.set_title(str(meta.get("description", disp)))
                 ax.grid(True)
 
-                # trendline (legacy-ish: on filtered operating df)
+                # trendline
                 if tag in filtered_df.columns and len(filtered_df.index) >= 4:
                     y = pd.to_numeric(filtered_df[tag], errors="coerce").values
                     x = np.arange(len(filtered_df.index))
@@ -391,7 +470,7 @@ class Notifier:
                         trend = slope * x + intercept
                         ax.plot(filtered_df.index, trend, label=f"{disp} Trendline", linestyle="--", color="orange")
 
-                # NEW: highlight threshold breaches while section is ON (1 or 2)
+                # highlight threshold breaches while section ON
                 hi = high_map.get(tag, None)
                 lo = low_map.get(tag, None)
 
@@ -403,11 +482,9 @@ class Notifier:
                         outside = outside | (s < float(lo))
                     outside = outside.fillna(False)
 
-                    # only when section is ON
                     sec_on = operating_mask.reindex(outside.index).fillna(False)
                     outside = outside & sec_on
 
-                    # shade continuous segments
                     ranges = self._mask_to_ranges(outside)
                     for a, b in ranges:
                         ax.axvspan(a, b, color="red", alpha=0.2)
@@ -442,18 +519,27 @@ class Notifier:
         feature_contrib: Optional[pd.DataFrame],
         plots: PlotBundle,
         alarm_thresh: float,
+        method_name: str,
+        trigger_context: Optional[Dict[str, Any]] = None,
     ) -> str:
         cfg = self.ssot.get(self.sensor_name, {}) or {}
         model_desc = str(cfg.get("Model_Description", self.sensor_name))
 
-        feature_table_html = self._build_likely_cause_table(feature_contrib)
+        feature_table_html = self._build_likely_cause_table(
+            feature_contrib,
+            method_name=method_name,
+            trigger_context=trigger_context,
+        )
 
         ts_disp_s, ts_utc_s = self._ts_strings(latest_ts)
+        pretty_method = (trigger_context or {}).get("pretty_method") or method_name
 
+        # Detection Mode line BEFORE the table (as requested)
         body = f"""🚨 Alert! 🚨<br><br> 
                     We have detected a sustained significant deviation in the operating conditions of the: {model_desc}. 
                     Please review the system status to restore stability <br><br>                   
-                    The table below highlights the importance of each measured detector <br>
+                    The table below highlights the importance of each measured detector <br><br>
+                    <b>Detection Mode:</b> {pretty_method}<br>
                     {feature_table_html}<br><br>
 
                     <img src="data:image/png;base64,{plots.short_plot_b64}" alt="Plot" />
@@ -523,6 +609,8 @@ class Notifier:
         reason: str,
         alarm_thresh: Optional[float] = None,
         filter_value: Optional[float] = None,
+        method_name: str = "FixedThresholds",
+        trigger_context: Optional[Dict[str, Any]] = None,
     ) -> None:
         cfg = self.ssot.get(self.sensor_name, {}) or {}
         site = str(self.ssot.get("site", "SITE"))
@@ -542,6 +630,8 @@ class Notifier:
             feature_contrib=feature_contrib,
             plots=plots,
             alarm_thresh=float(alarm_thresh),
+            method_name=method_name,
+            trigger_context=trigger_context,
         )
 
         self._send_email(subject=subject, html=html, use_high_priority=False)
@@ -556,6 +646,8 @@ class Notifier:
         reason: str,
         alarm_thresh: Optional[float] = None,
         filter_value: Optional[float] = None,
+        method_name: str = "FixedThresholds",
+        trigger_context: Optional[Dict[str, Any]] = None,
     ) -> None:
         cfg = self.ssot.get(self.sensor_name, {}) or {}
         site = str(self.ssot.get("site", "SITE"))
@@ -575,6 +667,8 @@ class Notifier:
             feature_contrib=feature_contrib,
             plots=plots,
             alarm_thresh=float(alarm_thresh),
+            method_name=method_name,
+            trigger_context=trigger_context,
         )
 
         self._send_email(subject=subject, html=html, use_high_priority=True)

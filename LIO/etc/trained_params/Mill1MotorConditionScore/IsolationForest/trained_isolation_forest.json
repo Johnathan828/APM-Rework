@@ -1,0 +1,47 @@
+{
+  "ok": true,
+  "sensor": "Mill1MotorConditionScore",
+  "method": "IsolationForest",
+  "trained_at_utc": "2026-02-25T12:15:30Z",
+  "window": {
+    "start_utc": "2024-11-25 12:12:09",
+    "end_utc": "2025-02-25 12:12:09"
+  },
+  "preprocess": {
+    "resample_rule": "h",
+    "dropna": "any",
+    "exclude_startup": true,
+    "startup_minutes": 3,
+    "filter_value": 0.9
+  },
+  "features": [
+    "Mill1MotorConditionScore042Q",
+    "Mill1MotorConditionScore042Y",
+    "Mill1MotorConditionScore042R",
+    "Mill1MotorConditionScore042S",
+    "Mill1MotorConditionScore042T"
+  ],
+  "shape": {
+    "rows": 1788,
+    "cols": 5
+  },
+  "params": {
+    "n_estimators": 200,
+    "contamination": 0.01,
+    "max_samples": "auto",
+    "random_state": 42,
+    "pull_interval": "1 minutes"
+  },
+  "diagnostics": {
+    "frac_predicted_anomaly": 0.010067114093959731,
+    "score_samples_min": -0.8221176741978748,
+    "score_samples_p05": -0.5850360679249413,
+    "score_samples_median": -0.43964491453486665,
+    "score_samples_p95": -0.4123698200761897,
+    "score_samples_max": -0.40695700241398625
+  },
+  "artifacts": {
+    "model_joblib": "/home/johnathanc/APM/LIO/etc/trained_params/Mill1MotorConditionScore/IsolationForest/trained_isolation_forest.joblib",
+    "meta_json": "/home/johnathanc/APM/LIO/etc/trained_params/Mill1MotorConditionScore/IsolationForest/trained_isolation_forest.json"
+  }
+}
