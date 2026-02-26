@@ -47,13 +47,12 @@ class AlertEngine:
         self.sensor_name = sensor_name
         self.logger = logger
 
-        cfg = ssot.get(sensor_name, {}) or {}
-        other = cfg.get("Other", {}) or {}
-        ft = cfg.get("filter_tag", {}) or {}
+        cfg = (self.ssot.get(self.sensor_name, {}) or {})
+        other = (cfg.get("Other", {}) or {})
 
-        # Prefer filter_tag.alarm_thresh if present, else fall back to Other.alarm_thresh
-        self.alarm_thresh = float(ft.get("alarm_thresh", other.get("alarm_thresh", 0.75)))
-        self.filter_value = float(ft.get("filter_value", other.get("filter_value", 0.9)))
+        # SSOT: alarm_thresh + filter_value live ONLY in Other
+        self.alarm_thresh = float(other.get("alarm_thresh", 0.75))
+        self.filter_value = float(other.get("filter_value", 0.9))
 
         # Startup suppression window (minutes) – legacy behaviour
         self.startup_period_minutes = int(other.get("startup_period", 0))

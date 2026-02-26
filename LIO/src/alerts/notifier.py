@@ -621,7 +621,7 @@ class Notifier:
         if alarm_thresh is None:
             alarm_thresh = float(((cfg.get("Other", {}) or {}).get("alarm_thresh", 0.75)))
         if filter_value is None:
-            filter_value = float(((cfg.get("filter_tag", {}) or {}).get("filter_value", 0.9)))
+            filter_value = float(((cfg.get("Other", {}) or {}).get("filter_value", 0.9)))
 
         plots = self._generate_plots(latest_ts=latest_ts, alarm_thresh=float(alarm_thresh), filter_value=float(filter_value))
         html = self._build_html(
@@ -658,7 +658,7 @@ class Notifier:
         if alarm_thresh is None:
             alarm_thresh = float(((cfg.get("Other", {}) or {}).get("alarm_thresh", 0.75)))
         if filter_value is None:
-            filter_value = float(((cfg.get("filter_tag", {}) or {}).get("filter_value", 0.9)))
+            filter_value = float(((cfg.get("Other", {}) or {}).get("filter_value", 0.9)))
 
         plots = self._generate_plots(latest_ts=latest_ts, alarm_thresh=float(alarm_thresh), filter_value=float(filter_value))
         html = self._build_html(

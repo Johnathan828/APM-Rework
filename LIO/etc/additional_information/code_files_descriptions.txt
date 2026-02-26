@@ -1,0 +1,123 @@
+Repository Layout
+
+1) Entry Points
+1.1) deployment.py
+
+    Primary runtime launcher.
+
+    Loads SSOT (etc/config.json) + settings (etc/config.ini)
+
+    Spawns one process per sensor
+
+    Each sensor worker runs on Other.sampling_freq_seconds
+
+2) src/ Modules
+2.1) src/apm_core/ (Core plumbing)
+
+2.1.1) ssot.py
+
+        Loads SSOT JSON
+
+        Builds/returns sensor spec objects (features, filter tag, Other block, etc)
+
+        Holds convenience methods to access sensor config safely.
+
+2.1.2) settings.py
+
+        Loads etc/config.ini
+
+        Switches Email/DB sections based on global debug flag.
+
+2.1.3) db_interface.py
+
+        Creates Postgres pool + MSSQL connection
+
+        Provides idempotent write helpers (delete+insert per timestamp)
+
+2.1.4) raw_pull.py
+
+        Pulls raw time series data from Postgres / Minocore
+
+        Builds the wide frame used by models (build_wide_frame)
+
+2.2) src/pipeline/ (Runtime orchestration)
+
+2.2.1) sensor_worker.py
+
+        Per-sensor child process
+
+        Runs run_sensor_once() in a loop with sleep cadence.
+
+2.2.2) run_once.py
+
+        One sensor tick:
+
+            pull raw data
+
+            score with active method
+
+            write latest score + section status + feature contributions to MSSQL
+
+            evaluate alert decision
+
+            log event + send email (with cooldown + in-flight guard)
+
+2.2.3) run_loop.py
+
+        Sequential single-process loop (legacy dev helper)
+
+        Not used by deployment.py when using process-per-sensor mode.
+
+        Keep only if needed as a fallback dev mode.
+
+2.3) src/models/ (Detection methods)
+
+2.3.1) factory.py
+
+        Reads Method.<Method>.Active and enforces exactly one active method
+
+        Instantiates the active model.
+
+2.3.2) fixed_thresholds.py
+
+        Threshold-based scoring from SSOT high/low maps.
+
+2.3.3) statistical_thresholds.py
+
+        Threshold-based scoring, but thresholds come from trained artifacts saved under:
+        etc/trained_params/<Sensor>/StatisticalThresholds/
+
+2.4) src/alerts/ (Alerting + reporting)
+
+2.4.1) alert_engine.py
+
+        Gate logic: section status must be open (filter_tag.filter_value)
+
+        Startup suppression window (Other.startup_period)
+
+        Alarm condition: score below alarm threshold
+
+        NOTE: alert_holding_minutes is intended to act as cooldown (anti-spam), not “must be anomalous for 15 mins”.
+
+2.4.2) notifier.py
+
+        Builds and sends email
+
+        Embeds plots + likely-cause table
+
+        Table structure:
+        Tag | Description | Anomaly Cause | Trigger
+
+        Includes detection mode line: Detection Mode: ...
+
+2.4.3) event_logger.py
+
+        Writes alert events to MSSQL table (e.g., NewApmModelEvents)
+
+2.4.4) state_store.py
+
+        Stores per-sensor state under etc/state/:
+
+        cooldown timestamp
+
+        email-in-flight guard timestamp

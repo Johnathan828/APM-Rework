@@ -6,7 +6,6 @@ from typing import Dict, Any, Tuple
 
 from .fixed_thresholds import FixedThresholdsModel
 from .statistical_thresholds import StatisticalThresholdsModel
-from .isolation_forest import IsolationForestModel
 
 
 def build_model(
@@ -36,13 +35,6 @@ def build_model(
     if method_name == "StatisticalThresholds":
         return (
             StatisticalThresholdsModel(sensor_cfg=sensor_cfg, method_cfg=method_cfg, sensor_name=sensor_name, site_root=site_root),
-            method_name,
-            method_cfg,
-        )
-
-    if method_name == "IsolationForest":
-        return (
-            IsolationForestModel(sensor_cfg=sensor_cfg, method_cfg=method_cfg, sensor_name=sensor_name, site_root=site_root),
             method_name,
             method_cfg,
         )

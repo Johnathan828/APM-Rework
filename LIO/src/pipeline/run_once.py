@@ -151,8 +151,7 @@ def run_sensor_once(
     # ------------------------------------------------------------------
     pretty_method = {
         "FixedThresholds": "Fixed Thresholds",
-        "StatisticalThresholds": "Statistical Thresholds",
-        "IsolationForest": "Isolation Forest",
+        "StatisticalThresholds": "Statistical Thresholds"
     }.get(method_name, method_name)
 
     # Build a windowed df_wide aligned to UTC-naive + same window as likely-cause table
