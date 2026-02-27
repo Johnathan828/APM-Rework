@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Tuple, Dict
 
+import numpy as np
 import pandas as pd
 
 from .ssot import SensorSpec
@@ -34,7 +35,7 @@ def build_wide_frame(
     if raw is None or raw.empty:
         return pd.DataFrame(), pd.Series(dtype=float)
 
-    # LOCKED schema (confirmed by your log)
+    # LOCKED schema
     df_long = raw[["rt_timestamp", "sourceidentifier", "rt_value"]].copy()
     df_long.rename(columns={"rt_timestamp": "timestamp", "sourceidentifier": "tag", "rt_value": "value"}, inplace=True)
 
@@ -46,6 +47,50 @@ def build_wide_frame(
     if not shutdown_expr or not shutdown_tag_map:
         return df_wide, pd.Series(1.0, index=df_wide.index, name="Filter_Tag")
 
+    # ------------------------------------------------------------
+    # FAST PATH:
+    # Handle simple single-variable comparisons like:
+    #   "(ball_mill_power_kw < 700)"
+    #   "mill_speed_rpm <= 1.0"
+    # If expression is complex, fall back to eval loop.
+    # ------------------------------------------------------------
+    import re
+    m = re.fullmatch(r"\(?\s*([A-Za-z_]\w*)\s*(<=|>=|<|>|==|!=)\s*([0-9.]+)\s*\)?", shutdown_expr)
+    if m:
+        var, op, rhs_s = m.group(1), m.group(2), m.group(3)
+        rhs = float(rhs_s)
+        tag_id = shutdown_tag_map.get(var)
+
+        if tag_id and tag_id in df_wide.columns:
+            s = pd.to_numeric(df_wide[tag_id], errors="coerce")
+
+            if op == "<":
+                is_shutdown = s < rhs
+            elif op == "<=":
+                is_shutdown = s <= rhs
+            elif op == ">":
+                is_shutdown = s > rhs
+            elif op == ">=":
+                is_shutdown = s >= rhs
+            elif op == "==":
+                is_shutdown = s == rhs
+            else:  # "!="
+                is_shutdown = s != rhs
+
+            # If value is NaN -> treat as shutdown (conservative)
+            is_shutdown = is_shutdown.fillna(True)
+
+            filter_series = pd.Series(
+                np.where(is_shutdown, 0.0, 1.0),
+                index=df_wide.index,
+                name="Filter_Tag",
+            )
+            return df_wide, filter_series
+
+    # ------------------------------------------------------------
+    # FALLBACK (generic):
+    # Evaluate expression per-row (slower) for complex rules.
+    # ------------------------------------------------------------
     filter_vals = []
     for _, row in df_wide.iterrows():
         locals_dict = {}

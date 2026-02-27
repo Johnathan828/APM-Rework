@@ -1,0 +1,7 @@
+{
+  "sensor": "Mill1GearboxConditionScore",
+  "worker_pid": 991321,
+  "tick_ok_at_utc": "2026-02-27T06:40:42Z",
+  "latest_score_ts_utc": null,
+  "every_seconds": 60
+}
