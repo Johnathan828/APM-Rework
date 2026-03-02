@@ -17,6 +17,7 @@ user = CHANGEME
 password = CHANGEME
 port = CHANGEME
 table = CHANGEME
+events_table = CHANGEME
 
 [SQLALCHEMY_DEV]
 host = CHANGEME
@@ -25,6 +26,7 @@ user = CHANGEME
 password = CHANGEME
 port = CHANGEME
 table = CHANGEME
+events_table = CHANGEME
 
 [Email]
 display_timezone = CHANGME

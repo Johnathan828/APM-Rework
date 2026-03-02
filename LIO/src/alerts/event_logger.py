@@ -55,4 +55,4 @@ class EventLogger:
             site=str(self.ssot.get("site", "SITE")),
         )
 
-        self.logger.info(f"{self.sensor_name}: event logged to NewApmModelEvents")
+        self.logger.info(f"{self.sensor_name}: event logged | table={getattr(self.db, 'events_table', 'NewApmModelEvents')}")
