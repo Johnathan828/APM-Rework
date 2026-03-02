@@ -1,0 +1,29 @@
+name: apm_env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - matplotlib=3.9.4
+  - plotly=6.2.0
+  - numpy=1.26.4
+  - pandas=2.3.0
+  - scikit-learn=1.2.2
+  - pytz=2022.1
+  - pymssql=2.2.7
+  - psycopg2
+  - requests=2.28.2
+  - pip=25.0.1
+  - ipykernel=6.29.5
+  - seaborn=0.13.2
+  - sqlalchemy=2.0.36
+  - greenlet=3.1.1
+  - typing-extensions=4.14.1
+  - ipywidgets=8.1.5
+  - jupyterlab_widgets=3.0.13
+  - widgetsnbextension=4.0.13
+  - flask=2.0.3
+  - werkzeug=2.0.3
+  - pytorch=2.6.0
+  - pip:
+      - apscheduler==3.11.0

@@ -27,18 +27,18 @@ port = CHANGEME
 table = CHANGEME
 
 [Email]
+display_timezone = CHANGME
 from_address = CHANGEME
 password = CHANGEME
-admin_emails = CHANGEME
 smtp_server = CHANGEME
 smtp_port = CHANGEME
 generate_emails = CHANGEME
 to_address = CHANGEME
 
 [Email_DEV]
+display_timezone = CHANGEME
 from_address = CHANGEME
 password = CHANGEME
-admin_emails = CHANGEME
 smtp_server = CHANGEME
 smtp_port = CHANGEME
 generate_emails = CHANGEME

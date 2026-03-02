@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Condition Monitoring</title>
+
+    <!-- Include Bootstrap for better styling -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Link to CSS file in the css subfolder -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home_styles.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <!-- Include jQuery for AJAX calls -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+
+<body>
+
+    <!-- Navbar with background image -->
+    <nav class="navbar"></nav>
+
+    <!-- Navbar with heading -->
+    <nav class="navbar2">
+        <h1>NEUROMINE Asset Condition Monitoring</h1>
+    </nav>
+
+    <!-- Container for the main content -->
+    <div class="container">
+        <!-- Navigation bar with buttons -->
+        <div class="nav-buttons">
+            <!-- <button class="btn btn-primary" onclick="loadContent('neuromineview')" disabled>Neuromine View</button> -->
+            <button class="btn btn-primary" onclick="loadContent('lives_agents')">Live Monitoring</button>
+            <button class="btn btn-primary" onclick="loadContent('startstop')" >Start Stop Agents</button>
+            <!-- <button class="btn btn-primary" onclick="loadContent('proxy')" >Render MineView</button> -->
+            <!-- <button class="btn btn-primary" onclick="loadContent('page3')" disabled>Retrain Agent</button> -->
+        </div>
+
+        <!-- Main content area where the content will change -->
+        <div id="content" class="mt-3">
+            <!-- <script src="{{ url_for('static', filename='js/live_script.js') }}"></script> -->
+            <!-- <h2 style="font-family: Arial, Helvetica, sans-serif;align-items: center;">Total Running Agents: {{ models_info|length }}</h2>
+
+            <div class="tiles-container">
+                <ul class="model-list">
+                    {% for model in models_info %}
+                        <li class="tile pulsating-tile">
+                            <a href="#" onclick="loadContent('lives_agents')">
+                                <h3>{{ model.description }}</h3>
+                            </a>
+                        </li>
+                    {% endfor %}
+
+                </ul>
+            </div> -->
+            
+            <!-- <div class = "alert-heading"><h5>Current Alerts</h5></div>
+            <div class = "botton-table-stats">
+                <div>
+                    <div class = "alert-heading">
+                        <h6>Current Alerts</h6>
+                    </div>
+                    
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Agent Name</th>
+                                <th>Type</th>
+                                <th>Latest Result</th>
+                                <th>Trigger Date</th>
+                                <th>Latest Update</th>
+                                <th>Health Score</th>
+                                <th>Level</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alert-events-table">
+    
+                        </tbody>
+                    </table>
+                    
+                </div> -->
+                <!-- <div>
+                    <div class = "alert-heading"><h6>Past 24r Summary</h6></div>
+                    
+                        <div class="tiles-container2">
+                            <div class="tile">
+                                <h4>Total Anomalies</h4>
+                                <p id="total-events">0</p> 
+                            </div>
+                            <div class="tile">
+                                <h4>Average Health</h4>
+                                <p id="average-event-health">0%</p> 
+                            </div>
+                            <div class="tile">
+                                <h4>Total Monitored Sections</h4>
+                                <p id="total-monitored-sections">0</p> 
+                            </div>
+                            <div class="tile">
+                                <h4>Total Tag Inputs</h4>
+                                <p id="Total-Tag-Inputs">0</p> 
+                            </div>
+                        </div>
+                </div> -->
+            </div>
+        </div>
+
+    </div>
+    
+
+
+        <!-- Footer -->
+        <footer>
+            &copy; 2024 Minopex Neuromine. All rights reserved.
+        </footer>
+
+    <!-- JavaScript to load content dynamically -->
+    <script>
+        
+        // Dynamically set the base URL based on the current URL path
+        const baseUrl = window.location.pathname.replace(/\/$/, "") + "/";
+        
+        // Function to load content dynamically without refreshing the page
+        function loadContent(page) {
+            $.ajax({
+                url: baseUrl + page, // Prefix with baseUrl to ensure the correct URL
+                success: function(data) {
+                    $('#content').html(data); // Inject the content into the #content div
+                },
+                error: function() {
+                    $('#content').html('<p>Sorry, there was an error loading the content.</p>');
+                }
+            });
+        }
+    </script>
+
+</body>
+
+</html>

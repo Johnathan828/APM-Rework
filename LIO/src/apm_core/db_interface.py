@@ -15,8 +15,7 @@ class DBInterface:
     """
     One shared DB interface for ALL sensors.
 
-    - Raw pull from Minocore API (handled elsewhere)
-    - Optional Postgres support remains if needed
+    - Raw pull from Postgres sri_get_tag_data(...)
     - Write into MSSQL APM_Scalability(_Dev) with columns:
         displayname, value, granularity, site, timestamp, meta
 
@@ -29,7 +28,9 @@ class DBInterface:
         self.s = settings
         self.logger = logger
 
-        # Postgres pool (optional)
+        # -----------------------------
+        # Postgres pool (with timeouts)
+        # -----------------------------
         self.pg_pool = pool.SimpleConnectionPool(
             1,
             10,
@@ -38,19 +39,41 @@ class DBInterface:
             user=self.s.pg_user,
             password=self.s.pg_password,
             port=self.s.pg_port,
+            connect_timeout=10,  # ✅ prevent hanging connects
+            keepalives=1,
+            keepalives_idle=30,
+            keepalives_interval=10,
+            keepalives_count=5,
         )
         self.logger.info("PostgreSQL pool initialised")
 
-        # MSSQL sink
-        self.mssql_conn = pymssql.connect(
+        # -----------------------------
+        # MSSQL sink (with timeouts)
+        # -----------------------------
+        self.mssql_conn = self._connect_mssql()
+        self.logger.info(f"MSSQL connected | table={self.s.mssql_table}")
+
+    def _connect_mssql(self):
+        # pymssql supports login_timeout; timeout support depends on build, but safe to pass in most envs
+        return pymssql.connect(
             server=self.s.mssql_host,
             user=self.s.mssql_user,
             password=self.s.mssql_password,
             database=self.s.mssql_dbname,
             port=self.s.mssql_port,
             as_dict=True,
+            login_timeout=10,
+            timeout=15,
         )
-        self.logger.info(f"MSSQL connected | table={self.s.mssql_table}")
+
+    def _reconnect_mssql(self) -> None:
+        try:
+            if self.mssql_conn:
+                self.mssql_conn.close()
+        except Exception:
+            pass
+        self.mssql_conn = self._connect_mssql()
+        self.logger.warning(f"MSSQL reconnected | table={self.s.mssql_table}")
 
     def close(self) -> None:
         try:
@@ -65,7 +88,7 @@ class DBInterface:
             pass
 
     # -----------------------------
-    # Postgres helper (optional)
+    # Postgres helper
     # -----------------------------
     @staticmethod
     def _dt_to_pg_string(dt: datetime) -> str:
@@ -78,7 +101,15 @@ class DBInterface:
         start: datetime,
         end: datetime,
         interval_str: str,
+        statement_timeout_ms: int = 15000,  # ✅ 15s query timeout
+        max_retries: int = 3,
     ) -> pd.DataFrame:
+        """
+        Pull tag data from sri_get_tag_data with:
+          - statement_timeout to prevent hanging queries
+          - retries/backoff
+          - pool conn eviction on failure
+        """
         if not tags:
             return pd.DataFrame()
 
@@ -86,27 +117,62 @@ class DBInterface:
         start_s = self._dt_to_pg_string(start)
         end_s = self._dt_to_pg_string(end)
 
+        # ✅ only fetch columns we actually use (smaller payload)
         sql = """
-            SELECT *
+            SELECT rt_timestamp, sourceidentifier, rt_value
             FROM sri_get_tag_data(%s, %s, %s, %s::interval);
         """
 
-        conn = self.pg_pool.getconn()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(sql, (tags_pipe, start_s, end_s, interval_str))
-                rows = cur.fetchall()
-                cols = [d[0] for d in cur.description]
-        finally:
-            self.pg_pool.putconn(conn)
+        last_err = None
 
-        df = pd.DataFrame(rows, columns=cols)
-        if df.empty:
-            self.logger.warning(f"Postgres sri_get_tag_data returned 0 rows | tags={len(tags)}")
-            return df
+        for attempt in range(1, max_retries + 1):
+            conn = None
+            try:
+                conn = self.pg_pool.getconn()
 
-        self.logger.info(f"Postgres raw rows={len(df)} cols={list(df.columns)}")
-        return df
+                # ✅ Apply statement timeout to this connection/session
+                with conn.cursor() as cur:
+                    cur.execute("SET statement_timeout = %s;", (int(statement_timeout_ms),))
+
+                with conn.cursor() as cur:
+                    cur.execute(sql, (tags_pipe, start_s, end_s, interval_str))
+                    rows = cur.fetchall()
+                    cols = [d[0] for d in cur.description]
+
+                df = pd.DataFrame(rows, columns=cols)
+                if df.empty:
+                    self.logger.warning(f"Postgres sri_get_tag_data returned 0 rows | tags={len(tags)}")
+                else:
+                    self.logger.info(f"Postgres raw rows={len(df)} cols={list(df.columns)}")
+
+                return df
+
+            except Exception as e:
+                last_err = e
+                self.logger.warning(f"Postgres pull failed (attempt {attempt}/{max_retries}) | err={e}")
+
+                # Evict broken conn from pool
+                try:
+                    if conn is not None:
+                        self.pg_pool.putconn(conn, close=True)
+                        conn = None
+                except Exception:
+                    pass
+
+                # Backoff
+                if attempt < max_retries:
+                    import time
+                    time.sleep(min(2 ** (attempt - 1), 5))
+
+            finally:
+                if conn is not None:
+                    try:
+                        self.pg_pool.putconn(conn)
+                    except Exception:
+                        pass
+
+        # All retries failed
+        raise last_err
 
     # -----------------------------
     # MSSQL write (IDEMPOTENT)
@@ -122,37 +188,45 @@ class DBInterface:
         cur.execute(del_sql, (site, displayname, ts))
 
     def write_rows_mssql(self, rows: List[Dict[str, Any]]) -> None:
+        """
+        Write rows with a single retry if MSSQL connection drops.
+        """
         if not rows:
             return
 
-        table = self.s.mssql_table
+        def _do_write():
+            table = self.s.mssql_table
+            ins_sql = f"""
+            INSERT INTO dbo.{table} ([displayname],[value],[granularity],[site],[timestamp],[meta])
+            VALUES (%s,%s,%s,%s,%s,%s)
+            """
+            with self.mssql_conn.cursor() as cur:
+                for r in rows:
+                    site = r["site"]
+                    disp = r["displayname"]
+                    ts = r["timestamp"]
 
-        ins_sql = f"""
-        INSERT INTO dbo.{table} ([displayname],[value],[granularity],[site],[timestamp],[meta])
-        VALUES (%s,%s,%s,%s,%s,%s)
-        """
+                    self._delete_existing_row(cur=cur, site=site, displayname=disp, ts=ts)
 
-        with self.mssql_conn.cursor() as cur:
-            for r in rows:
-                site = r["site"]
-                disp = r["displayname"]
-                ts = r["timestamp"]
+                    cur.execute(
+                        ins_sql,
+                        (
+                            disp,
+                            float(r["value"]) if r["value"] is not None else None,
+                            int(r["granularity"]),
+                            site,
+                            ts,
+                            r.get("meta", None),
+                        ),
+                    )
+                self.mssql_conn.commit()
 
-                self._delete_existing_row(cur=cur, site=site, displayname=disp, ts=ts)
-
-                cur.execute(
-                    ins_sql,
-                    (
-                        disp,
-                        float(r["value"]) if r["value"] is not None else None,
-                        int(r["granularity"]),
-                        site,
-                        ts,
-                        r.get("meta", None),
-                    ),
-                )
-
-            self.mssql_conn.commit()
+        try:
+            _do_write()
+        except Exception as e:
+            self.logger.warning(f"MSSQL write failed, retrying once | err={e}")
+            self._reconnect_mssql()
+            _do_write()
 
     def write_series_mssql(
         self,
@@ -190,7 +264,7 @@ class DBInterface:
         self.write_rows_mssql(rows)
 
     # -----------------------------
-    # REQUIRED WRAPPERS (so other modules don't break)
+    # REQUIRED WRAPPERS
     # -----------------------------
     def write_series_mssql_idempotent(self, displayname: str, series: pd.Series, site: str, granularity: int, meta=None):
         """Wrapper name used by pipeline/alerts code."""
@@ -207,7 +281,7 @@ class DBInterface:
         site: str,
     ) -> None:
         """
-        Insert into dbo.NewApmModelEvents (simple insert).
+        Insert into dbo.NewApmModelEvents (simple insert), retry once on MSSQL reconnect.
         """
         sql = """
         INSERT INTO dbo.NewApmModelEvents
@@ -215,6 +289,15 @@ class DBInterface:
         VALUES
           (%s,%s,%s,%s,%s,%s,%s,GETUTCDATE())
         """
-        with self.mssql_conn.cursor() as cur:
-            cur.execute(sql, (model_name, model_type, trigger_time, float(score), int(level), event_details, site))
-            self.mssql_conn.commit()
+
+        def _do():
+            with self.mssql_conn.cursor() as cur:
+                cur.execute(sql, (model_name, model_type, trigger_time, float(score), int(level), event_details, site))
+                self.mssql_conn.commit()
+
+        try:
+            _do()
+        except Exception as e:
+            self.logger.warning(f"MSSQL event insert failed, retrying once | err={e}")
+            self._reconnect_mssql()
+            _do()

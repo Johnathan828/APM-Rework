@@ -3,7 +3,6 @@
   "debug": true,
         "Mill1PinionConditionScore": {
           "debug": false,
-          "sensor_folder": "LIO_Mill_1_Pinion_Monitoring",
           "Model_Description": "Mill 1 Pinion Condition Score",
           "Plant Section": "Milling",
           "Features": {
@@ -39,11 +38,7 @@
             }
           },
           "filter_tag": {
-            "FilterTagName": "Mill1PinionConditionScore_Section_Status",
-            "description": "Mill1PinionConditionScore_Section_Status",
-            "tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
-            "filter_value": 0.9,
-            "alarm_thresh": 0.75
+            "FilterTagName": "Mill1PinionConditionScore_Section_Status"
           },
           "shutdown_rules": {
               "tags": {
@@ -52,38 +47,18 @@
               "shutdown_rules":"(ball_mill_power_kw < 700)"
           },
           "Other": {
-            "displayname_scores": "Mill1PinionConditionScore",
-            "displayname_feature_cont": "None",
             "granularity": 15,
             "granularity_type": "seconds",
-            "filter_tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
-            "filter_tag_thresh": 700,
-            "filter_value": 1,
-            "filter_inst_alarm": 5,
-            "alarm_thresh": 0.75,
-            "identifier": "sourceidentifier",
-            "model_outputs_path":"../LIO_Mill_1_Pinion_Monitoring/etc/model_outputs",
             "sampling_freq_seconds": 60,
-            "sampling_window": 1,
-            "alert_holding_minutes": 15,
+            "alarm_thresh": 0.75,
             "startup_period": 3,
-            "percentile_max": 0.95,
-            "percentile_min": 0.05,
-            "train_test_plit": 0.2,
-            "training_months": 6,
-            "training_months_freq": 1,
-            "normal_op_window_minutes": 120,
-            "anomaly_eval_window_minutes": 15
+            "filter_value": 1,
+            "alert_holding_minutes": 15,
+            "email_inflight_timeout_minutes": 30
           },
           "Method": {
-            "StatisticalThresholds": {
-              "Active": false,
-              "percentilemax": 0.99,
-              "smoothing_mean": 10,
-              "resample_interval": "h"
-            },
             "FixedThresholds": {
-              "Active": true,
+              "Active": false,
               "high": {
                 "ns=3;s=\"AI_200-TT-042G\".\"OUT_EU\"": 68.24793004989624,
                 "ns=3;s=\"AI_200-TT-042H\".\"OUT_EU\"": 76.01273202896118,
@@ -99,16 +74,13 @@
                 "ns=3;s=\"AI_200-TT-042P\".\"OUT_EU\"": 20
               }
             },
-            "IsolationForests": {
-              "Active": false,
-              "max_samples": 5000,
-              "contamination": 10
-            }
+            "StatisticalThresholds": {
+                "Active": true
+              }
           }
         },
         "Mill1TrunnionConditionScore": {
           "debug": false,
-          "sensor_folder": "LIO_Mill_1_Trunnion_Monitoring",
           "Model_Description": "Mill 1 Trunnion Condition Score",
           "Plant Section": "Milling",
           "Features": {
@@ -162,11 +134,7 @@
             }
           },
           "filter_tag": {
-            "FilterTagName": "Mill1TrunnionConditionScore_Section_Status",
-            "description": "Mill1TrunnionConditionScore_Section_Status",
-            "tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
-            "filter_value": 0.9,
-            "alarm_thresh": 0.75
+            "FilterTagName": "Mill1TrunnionConditionScore_Section_Status"
           },
           "shutdown_rules": {
               "tags": {
@@ -175,36 +143,16 @@
               "shutdown_rules":"(ball_mill_power_kw < 700)"
           },
           "Other": {
-            "displayname_scores": "Mill1TrunnionConditionScore",
-            "displayname_feature_cont": "None",
             "granularity": 15,
             "granularity_type": "seconds",
-            "filter_tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
-            "filter_tag_thresh": 700,
-            "filter_value": 1,
-            "filter_inst_alarm": 5,
-            "alarm_thresh": 0.75,
-            "identifier": "sourceidentifier",
-            "model_outputs_path":"../LIO_Mill_1_Trunnion_Monitoring/etc/model_outputs",
             "sampling_freq_seconds": 60,
-            "sampling_window": 1,
-            "alert_holding_minutes": 15,
+            "alarm_thresh": 0.75,
             "startup_period": 3,
-            "percentile_max": 0.95,
-            "percentile_min": 0.05,
-            "train_test_plit": 0.2,
-            "training_months": 6,
-            "training_months_freq": 1,
-            "normal_op_window_minutes": 120,
-            "anomaly_eval_window_minutes": 15
+            "filter_value": 1,
+            "alert_holding_minutes": 15,
+            "email_inflight_timeout_minutes": 30
           },
           "Method": {
-            "StatisticalThresholds": {
-              "Active": false,
-              "percentilemax": 0.99,
-              "smoothing_mean": 10,
-              "resample_interval": "h"
-            },
             "FixedThresholds": {
               "Active": true,
                   "high": {
@@ -229,16 +177,13 @@
 
                 }
             },
-            "IsolationForests": {
-              "Active": false,
-              "max_samples": 5000,
-              "contamination": 10
+            "StatisticalThresholds": {
+                "Active": false
             }
           }
     },
     "Mill1MotorConditionScore": {
           "debug": false,
-          "sensor_folder": "LIO_Mill_1_Motor_Monitoring",
           "Model_Description": "Mill 1 Motor Condition Score",
           "Plant Section": "Milling",
           "Features": {
@@ -274,11 +219,7 @@
             }
           },
           "filter_tag": {
-            "FilterTagName": "Mill1MotorConditionScore_Section_Status",
-            "description": "Mill1MotorConditionScore_Section_Status",
-            "tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
-            "filter_value": 0.9,
-            "alarm_thresh": 0.75
+            "FilterTagName": "Mill1MotorConditionScore_Section_Status"
           },
           "shutdown_rules": {
               "tags": {
@@ -287,36 +228,16 @@
               "shutdown_rules":"(ball_mill_power_kw < 700)"
           },
           "Other": {
-            "displayname_scores": "Mill1MotorConditionScore",
-            "displayname_feature_cont": "None",
             "granularity": 15,
             "granularity_type": "seconds",
-            "filter_tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
-            "filter_tag_thresh": 700,
-            "filter_value": 1,
-            "filter_inst_alarm": 5,
-            "alarm_thresh": 0.75,
-            "identifier": "sourceidentifier",
-            "model_outputs_path":"../LIO_Mill_1_Motor_Monitoring/etc/model_outputs",
             "sampling_freq_seconds": 60,
-            "sampling_window": 1,
-            "alert_holding_minutes": 15,
+            "alarm_thresh": 0.75,
             "startup_period": 3,
-            "percentile_max": 0.95,
-            "percentile_min": 0.05,
-            "train_test_plit": 0.2,
-            "training_months": 6,
-            "training_months_freq": 1,
-            "normal_op_window_minutes": 120,
-            "anomaly_eval_window_minutes": 15
+            "filter_value": 1,
+            "alert_holding_minutes": 15,
+            "email_inflight_timeout_minutes": 30
           },
           "Method": {
-            "StatisticalThresholds": {
-              "Active": false,
-              "percentilemax": 0.99,
-              "smoothing_mean": 10,
-              "resample_interval": "h"
-            },
             "FixedThresholds": {
               "Active": true,
                   "high": {
@@ -334,16 +255,13 @@
                     "ns=3;s=\"AI_200-TT-042Y\".\"OUT_EU\"": -118.51851654052734
                 }
             },
-            "IsolationForests": {
-              "Active": false,
-              "max_samples": 5000,
-              "contamination": 10
+            "StatisticalThresholds": {
+                "Active": false
             }
           }
     },
     "Mill1GearboxConditionScore": {
           "debug": false,
-          "sensor_folder": "LIO_Mill_1_Gearbox_Monitoring",
           "Model_Description": "Mill 1 Gearbox Condition Score",
           "Plant Section": "Milling",
           "Features": {
@@ -397,11 +315,7 @@
             }
           },
           "filter_tag": {
-            "FilterTagName": "Mill1GearboxConditionScore_Section_Status",
-            "description": "Mill1GearboxConditionScore_Section_Status",
-            "tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
-            "filter_value": 0.9,
-            "alarm_thresh": 0.75
+            "FilterTagName": "Mill1GearboxConditionScore_Section_Status"
           },
           "shutdown_rules": {
               "tags": {
@@ -410,38 +324,18 @@
               "shutdown_rules":"(ball_mill_power_kw < 700)"
           },
           "Other": {
-            "displayname_scores": "Mill1GearboxConditionScore",
-            "displayname_feature_cont": "None",
             "granularity": 15,
             "granularity_type": "seconds",
-            "filter_tag": "ns=3;s=\"AI_200-JT-042\".\"OUT_EU\"",
-            "filter_tag_thresh": 700,
-            "filter_value": 1,
-            "filter_inst_alarm": 5,
-            "alarm_thresh": 0.75,
-            "identifier": "sourceidentifier",
-            "model_outputs_path":"../LIO_Mill_1_Gearbox_Monitoring/etc/model_outputs",
             "sampling_freq_seconds": 60,
-            "sampling_window": 1,
-            "alert_holding_minutes": 15,
+            "alarm_thresh": 0.75,
             "startup_period": 3,
-            "percentile_max": 0.95,
-            "percentile_min": 0.05,
-            "train_test_plit": 0.2,
-            "training_months": 6,
-            "training_months_freq": 1,
-            "normal_op_window_minutes": 120,
-            "anomaly_eval_window_minutes": 15
+            "filter_value": 1,
+            "alert_holding_minutes": 15,
+            "email_inflight_timeout_minutes": 30
           },
           "Method": {
-            "StatisticalThresholds": {
-              "Active": false,
-              "percentilemax": 0.99,
-              "smoothing_mean": 10,
-              "resample_interval": "h"
-            },
             "FixedThresholds": {
-              "Active": true,
+              "Active": false,
                   "high": {
                     "ns=3;s=\"AI_200-TT-042I\".\"OUT_EU\"": 66.94832754135132,
                     "ns=3;s=\"AI_200-TT-042J\".\"OUT_EU\"": 65.34740447998047,
@@ -463,11 +357,9 @@
                     "ns=3;s=\"AI_200-TT-666B\".\"OUT_EU\"": 20
                 }
             },
-            "IsolationForests": {
-              "Active": false,
-              "max_samples": 5000,
-              "contamination": 10
-            }
+            "StatisticalThresholds": {
+                "Active": true
           }
         }
+    }
 }
