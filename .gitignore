@@ -26,12 +26,9 @@ env/
 logs/
 
 # Data / artifacts (keep these OUT of git)
-etc/state/
-etc/models/
-**/model_outputs/
-**/*.pkl
-**/*.joblib
+**/etc/state/
+**/etc/logs/
 
 # Secrets / local config
-LIO/etc/config.ini
+**/etc/config.ini
 **/*secrets*

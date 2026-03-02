@@ -1,4 +1,3 @@
-# APM/LIO/src/apm_core/db_interface.py
 from __future__ import annotations
 
 from datetime import datetime
@@ -16,17 +15,21 @@ class DBInterface:
     One shared DB interface for ALL sensors.
 
     - Raw pull from Postgres sri_get_tag_data(...)
-    - Write into MSSQL APM_Scalability(_Dev) with columns:
-        displayname, value, granularity, site, timestamp, meta
+    - Write scores into MSSQL dbo.<mssql_table> (APM_Scalability / APM_Scalability_Dev)
+    - Write events into MSSQL dbo.<mssql_events_table> (NewApmModelEvents / NewApmModelEvents_Dev)
 
     IMPORTANT:
-    Idempotent write (DELETE then INSERT) for each row to prevent duplicates.
+    Idempotent write (DELETE then INSERT) for each score row to prevent duplicates.
     """
 
     def __init__(self, settings: IniSettings, logger):
         self.settings = settings  # <- expose settings for notifier
         self.s = settings
         self.logger = logger
+
+        # Tables (driven by config.ini section)
+        self.score_table = str(self.s.mssql_table)
+        self.events_table = str(getattr(self.s, "mssql_events_table", "NewApmModelEvents"))
 
         # -----------------------------
         # Postgres pool (with timeouts)
@@ -51,7 +54,7 @@ class DBInterface:
         # MSSQL sink (with timeouts)
         # -----------------------------
         self.mssql_conn = self._connect_mssql()
-        self.logger.info(f"MSSQL connected | table={self.s.mssql_table}")
+        self.logger.info(f"MSSQL connected | score_table={self.score_table} | events_table={self.events_table}")
 
     def _connect_mssql(self):
         # pymssql supports login_timeout; timeout support depends on build, but safe to pass in most envs
@@ -73,7 +76,7 @@ class DBInterface:
         except Exception:
             pass
         self.mssql_conn = self._connect_mssql()
-        self.logger.warning(f"MSSQL reconnected | table={self.s.mssql_table}")
+        self.logger.warning(f"MSSQL reconnected | score_table={self.score_table} | events_table={self.events_table}")
 
     def close(self) -> None:
         try:
@@ -175,10 +178,10 @@ class DBInterface:
         raise last_err
 
     # -----------------------------
-    # MSSQL write (IDEMPOTENT)
+    # MSSQL write (IDEMPOTENT) - scores
     # -----------------------------
     def _delete_existing_row(self, *, cur, site: str, displayname: str, ts: datetime) -> None:
-        table = self.s.mssql_table
+        table = self.score_table
         del_sql = f"""
         DELETE FROM dbo.{table}
         WHERE CAST([site] AS VARCHAR(50)) = %s
@@ -195,7 +198,7 @@ class DBInterface:
             return
 
         def _do_write():
-            table = self.s.mssql_table
+            table = self.score_table
             ins_sql = f"""
             INSERT INTO dbo.{table} ([displayname],[value],[granularity],[site],[timestamp],[meta])
             VALUES (%s,%s,%s,%s,%s,%s)
@@ -224,7 +227,7 @@ class DBInterface:
         try:
             _do_write()
         except Exception as e:
-            self.logger.warning(f"MSSQL write failed, retrying once | err={e}")
+            self.logger.warning(f"MSSQL score write failed, retrying once | err={e}")
             self._reconnect_mssql()
             _do_write()
 
@@ -266,10 +269,20 @@ class DBInterface:
     # -----------------------------
     # REQUIRED WRAPPERS
     # -----------------------------
-    def write_series_mssql_idempotent(self, displayname: str, series: pd.Series, site: str, granularity: int, meta=None):
+    def write_series_mssql_idempotent(
+        self,
+        displayname: str,
+        series: pd.Series,
+        site: str,
+        granularity: int,
+        meta=None,
+    ):
         """Wrapper name used by pipeline/alerts code."""
         self.write_series_mssql(displayname=displayname, series=series, site=site, granularity=granularity, meta=meta)
 
+    # -----------------------------
+    # MSSQL write - events (config-driven table)
+    # -----------------------------
     def save_model_event_data(
         self,
         model_name: str,
@@ -281,10 +294,11 @@ class DBInterface:
         site: str,
     ) -> None:
         """
-        Insert into dbo.NewApmModelEvents (simple insert), retry once on MSSQL reconnect.
+        Insert into dbo.<events_table>, retry once on MSSQL reconnect.
         """
-        sql = """
-        INSERT INTO dbo.NewApmModelEvents
+        table = self.events_table
+        sql = f"""
+        INSERT INTO dbo.{table}
           ([model_name],[model_type],[trigger_time],[score],[level],[event_details],[site],[created_at])
         VALUES
           (%s,%s,%s,%s,%s,%s,%s,GETUTCDATE())
