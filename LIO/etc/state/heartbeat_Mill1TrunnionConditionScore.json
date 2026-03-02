@@ -1,7 +1,7 @@
 {
   "sensor": "Mill1TrunnionConditionScore",
-  "worker_pid": 991319,
-  "tick_ok_at_utc": "2026-02-27T06:40:42Z",
+  "worker_pid": 1418503,
+  "tick_ok_at_utc": "2026-03-02T07:56:55Z",
   "latest_score_ts_utc": null,
   "every_seconds": 60
 }

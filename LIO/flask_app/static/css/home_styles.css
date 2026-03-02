@@ -1,0 +1,313 @@
+/* Ensure no margins or padding for both html and body */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+/* Custom styling */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f7f7f7;
+}
+
+/* Make sure the container spans the full width and no extra space */
+.container {
+    width: 100%;
+    max-width: 100%; /* Ensure it never shrinks */
+    margin: 0; /* Remove margins around container */
+    padding: 10px; /* Add internal padding for content */
+    box-sizing: border-box; /* Ensure padding doesn't affect width */
+}
+
+/* Navbar styling with background image */
+.navbar {
+    background: no-repeat center center;
+    background-size: cover;
+    height: 100px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+}
+
+/* Navbar with heading */
+.navbar2 {
+    background-color: #eee8e8;
+    background-size: cover;
+    height: 50px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+.tiles-container2 {
+    display: flex;
+    justify-content: space-around;
+    gap: 20px;
+    padding: 10px;
+    margin-top: 20px;
+    background-color: #fcf8f8 ;
+}
+
+/* Table styling */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.7rem; /* Slightly smaller text for readability */
+    width: 100%; /* Full width table */
+}
+
+th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+th {
+    background-color: #f2f2f2;
+}
+
+h1 {
+    color: #b3b5b8;
+    margin-bottom: 0;
+    
+}
+
+.alert-heading {
+    grid-column: span 1;
+    background-color: #e2e1e9;
+    display: flex;
+    justify-content: center;  /* Horizontally centers content */
+    align-items: center;      /* Vertically centers content */
+    margin: 3px;
+}
+
+.model-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+.model-list li {
+    background: #f7f7f7;
+    margin-bottom: 10px;
+    padding: 20px;
+    border-radius: 5px;
+}
+
+.model-list li a {
+    text-decoration: none;
+    color: #333;
+    display: block;
+}
+
+.model-list li a:hover {
+    background-color: #e0e0e0;
+}
+
+.nav-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.btn-primary {
+    background-color: #4f4948;
+    color: white;
+}
+
+.btn {
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    text-transform: uppercase;
+    font-weight: bold;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    flex: 1;
+}
+
+.btn-primary:hover {
+    background-color: #5a6144;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-primary:active {
+    background-color: #6f784e;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.btn-primary:focus {
+    outline: none;
+    border-color: #004494;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+}
+
+.btn:disabled {
+    background-color: grey;
+    color: white; /* Optional: Change the text color if needed */
+    cursor: not-allowed; /* Optional: Show a "not allowed" cursor when hovering over the disabled button */
+    opacity: 0.5; /* Optional: Makes the button look more faded */
+    border-color: grey;
+}
+
+/* Container for the tiles */
+.tiles-container {
+    display: flex;
+    flex-wrap: wrap;            /* Allow items to wrap into multiple rows if needed */
+    justify-content: space-around;
+    gap: 20px;
+    padding: 10px;
+    margin-top: 20px;
+    background-color: #ffffff;
+}
+
+/* Style the list (removing default list styling) */
+.model-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;            /* Ensure tiles can wrap if the screen is small */
+    gap: 20px;
+}
+
+/* Each tile */
+.tile {
+    background-color: #4caf50;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 20px;
+    width: 200px;              /* Adjust as per your requirement */
+    text-align: center;        /* Center the content in each tile */
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s; /* Add a hover effect */
+}
+
+/* Each tile */
+.tile2 {
+    background-color: #efebfb;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 10px;
+    width: 100px;              /* Adjust as per your requirement */
+    height: 100px;
+    text-align: center;        /* Center the content in each tile */
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s; /* Add a hover effect */
+}
+
+.tile:hover {
+    transform: scale(1.05);    /* Slight zoom on hover */
+    background-color: inherit;
+}
+
+ul li:nth-child(1),
+ul li:nth-child(3) {
+    background-color: #e43f4c; /* or the equivalent for .green-tile */
+    animation: pulsate 3s infinite; /* Animation duration of 2 seconds, running infinitely */
+}
+
+ul li:nth-child(2),
+ul li:nth-child(4),
+ul li:nth-child(5) {
+    background-color: #a3c89e; /* or the equivalent for .red-tile */
+}
+
+/* Ensure links don't change tile styles */
+.tile a {
+    text-decoration: none;
+    color: inherit;
+}
+
+/* Headings inside tiles */
+.tile h3 {
+    font-size: 0.8em;
+    margin: 0;
+}
+
+/* Headings inside tiles */
+.tile2 p {
+    font-size: 0.8em;
+    margin: 0;
+}
+
+.botton-table-stats {
+    display: grid;
+    grid-template-columns: 2fr 1fr; /* 3 parts left column, 1 part right column */
+    grid-template-rows: auto auto; /* Two rows, auto height */
+    gap: 10px; /* Spacing between the columns */
+    width: 100%; /* Full width for grid */
+}
+
+/* Main content area */
+#content {
+    padding: 5px;
+    border: 2px solid #ddd;
+    background-color: #ffffff;
+    border-radius: 10px;
+    min-height: 50px;
+    width: 100%;
+}
+
+@keyframes pulsate {
+  0% {
+    background-color: #bd1032; 
+  }
+  50% {
+    background-color: #df5353 ; 
+  }
+  100% {
+    background-color: #df8080; 
+  }
+}
+
+footer {
+    margin-top: 30px;
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+    width: 100%;
+    padding: 10px;
+}
+
+/* Individual tile styling */
+.tile {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    padding: 20px;
+    width: 150px; /* Fixed width for each tile */
+    flex-grow: 1; /* Make the tiles grow equally */
+}
+
+.tile h4 {
+    font-size: 1.2rem;
+    color: #333;
+}
+
+.tile p {
+    font-size: 2rem;
+    font-weight: bold;
+    margin: 10px 0 0 0;
+    color: #3498db; /* Blue color for the numbers */
+}
+
+/* Add a hover effect to the tiles */
+.tile:hover {
+    background-color: #f9f9f9;
+    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease-in-out;
+}

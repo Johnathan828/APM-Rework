@@ -1,7 +1,7 @@
 {
   "sensor": "Mill1PinionConditionScore",
-  "worker_pid": 991318,
-  "tick_ok_at_utc": "2026-02-27T06:40:43Z",
+  "worker_pid": 1418510,
+  "tick_ok_at_utc": "2026-03-02T07:56:42Z",
   "latest_score_ts_utc": null,
   "every_seconds": 60
 }
