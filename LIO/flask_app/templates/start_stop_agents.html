@@ -5,44 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Start/Stop Agents</title>
     <style>
-        .start-stop-container {
-            display: flex;
-            justify-content: space-between;
-        }
+        .start-stop-container { display: flex; justify-content: space-between; }
+        .table-container { width: 60%; }
+        .status-summary { width: 35%; padding-left: 20px; }
 
-        .table-container {
-            width: 60%;
-        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background-color: #f4f4f4; }
 
-        .status-summary {
-            width: 35%;
-            padding-left: 20px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        th, td {
-            border: 1px solid #ccc;
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background-color: #f4f4f4;
-        }
-
-        .status-running {
-            color: green;
-            font-weight: bold;
-        }
-
-        .status-stopped {
-            color: red;
-            font-weight: bold;
-        }
+        .status-running { color: green; font-weight: bold; }
+        .status-stopped { color: red; font-weight: bold; }
 
         .action-btn {
             border: 2px solid black;
@@ -53,15 +25,8 @@
             border-radius: 0px;
         }
 
-        .action-start {
-            background-color: green;
-            color: white;
-        }
-
-        .action-stop {
-            background-color: red;
-            color: white;
-        }
+        .action-start { background-color: green; color: white; }
+        .action-stop { background-color: red; color: white; }
 
         #run-all-agents-btn {
             margin-top: 10px;
@@ -74,10 +39,7 @@
             border-radius: 0px;
         }
 
-        #run-all-agents-btn:hover {
-            background-color: #f0f0f0;
-        }
-
+        #run-all-agents-btn:hover { background-color: #f0f0f0; }
         #run-all-agents-btn:disabled {
             background-color: grey;
             color: white;
@@ -86,137 +48,206 @@
     </style>
 </head>
 <body>
-    <h1>Start/Stop Agents</h1>
-    <div class="start-stop-container">
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Agent Name</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                        <th>Retrain (Disabled)</th>
-                    </tr>
-                </thead>
-                <tbody id="agents-start-stop-table-body">
-                    {% for agent in agents %}
-                    <tr id="agent_{{ agent.name | replace(' ', '_') }}">
-                        <td>{{ agent.name }}</td>
-                        <td class="status {% if agent.status == 'Running' %}status-running{% else %}status-stopped{% endif %}">
-                            {{ agent.status }}
-                        </td>
-                        <td>
-                            <button class="action-btn {% if agent.action == 'Stop' %}action-stop{% else %}action-start{% endif %}" 
-                                    onclick="startStopAgent('{{ agent.name }}', '{{ agent.action }}')">
-                                {{ agent.action }}
-                            </button>
-                        </td>
-                        <td>
-                            <button class="retain" disabled>Retrain</button>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+<h1>Start/Stop Agents</h1>
 
-        <div class="status-summary">
-            <h2>Agent Status Summary</h2>
-            <table>
-                <tbody>
-                    <tr>
-                        <td><strong>Stopped Agents</strong></td>
-                        <td id="stopped-count">{{ stopped_count }}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Running Agents</strong></td>
-                        <td id="running-count">{{ running_count }}</td>
-                    </tr>
-                </tbody>
-            </table>
-            <button id="run-all-agents-btn" onclick="runAllAgents()" {% if stopped_count == 0 %}disabled{% endif %}>
-                Run All Models
-            </button>
-        </div>
+<div class="start-stop-container">
+    <div class="table-container">
+        <table>
+            <thead>
+            <tr>
+                <th>Agent Name</th>
+                <th>Status</th>
+                <th>Action</th>
+                <th>Retrain (Disabled)</th>
+            </tr>
+            </thead>
+
+            <tbody id="agents-start-stop-table-body">
+
+            <!-- Supervisor row -->
+            <tr id="agent_APM_Supervisor">
+                <td><strong>LIO Monitoring and Detection Module</strong></td>
+                <td id="supervisor-status-cell"
+                    class="status {% if supervisor_status in ['Running','Stale'] %}status-running{% else %}status-stopped{% endif %}">
+                    {{ supervisor_status }}
+                </td>
+                <td>
+                    <button id="supervisor-action-btn"
+                            class="action-btn {% if supervisor_status in ['Running','Stale'] %}action-stop{% else %}action-start{% endif %}"
+                            onclick="startStopSupervisor('{{ 'Stop' if supervisor_status in ['Running','Stale'] else 'Start' }}')">
+                        {{ 'Stop' if supervisor_status in ['Running','Stale'] else 'Start' }}
+                    </button>
+                </td>
+                <td><button class="retain" disabled>Retrain</button></td>
+            </tr>
+
+            <!-- Soft sensors -->
+            {% for agent in agents %}
+            <tr id="agent_{{ agent.name | replace(' ', '_') }}">
+                <td>{{ agent.name }}</td>
+                <td class="status {% if agent.status == 'Running' %}status-running{% else %}status-stopped{% endif %}">
+                    {{ agent.status }}
+                </td>
+                <td>
+                    <button class="action-btn {% if agent.action == 'Stop' %}action-stop{% else %}action-start{% endif %}"
+                            onclick="startStopAgent('{{ agent.name }}', '{{ agent.action }}')">
+                        {{ agent.action }}
+                    </button>
+                </td>
+                <td><button class="retain" disabled>Retrain</button></td>
+            </tr>
+            {% endfor %}
+
+            </tbody>
+        </table>
     </div>
 
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            updateRunAllButton();
-        });
+    <div class="status-summary">
+        <h2>Agent Status Summary</h2>
+        <table>
+            <tbody>
+            <tr>
+                <td><strong>Stopped Agents</strong></td>
+                <td id="stopped-count">{{ stopped_count }}</td>
+            </tr>
+            <tr>
+                <td><strong>Running Agents</strong></td>
+                <td id="running-count">{{ running_count }}</td>
+            </tr>
+            </tbody>
+        </table>
 
-        function startStopAgent(agentName, action) {
-            fetch('/Neuromine/LIO/APM/startstop_action', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ agent_name: agentName, action: action })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status) {
-                    const agentRow = document.getElementById(`agent_${agentName.replace(/\s+/g, '_')}`);
-                    if (agentRow) {
-                        const statusCell = agentRow.querySelector('.status');
-                        const actionBtn = agentRow.querySelector('.action-btn');
+        <button id="run-all-agents-btn" onclick="runAllAgents()" {% if stopped_count == 0 %}disabled{% endif %}>
+            Run All Models
+        </button>
+    </div>
+</div>
 
-                        statusCell.innerText = data.status;
-                        statusCell.className = `status ${data.status === "Running" ? "status-running" : "status-stopped"}`;
+<script>
+    // NOTE: Keep this super simple to avoid breaking clicks.
 
-                        actionBtn.innerText = data.action;
-                        actionBtn.className = `action-btn ${data.action === "Stop" ? "action-stop" : "action-start"}`;
-                        actionBtn.setAttribute("onclick", `startStopAgent('${agentName}', '${data.action}')`);
+    function startStopSupervisor(action) {
+        fetch('/Neuromine/LIO/APM/supervisor_action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: action })
+        })
+        .then(r => r.json())
+        .then(data => {
+            const stCell = document.getElementById("supervisor-status-cell");
+            const btn = document.getElementById("supervisor-action-btn");
+
+            if (stCell) {
+                stCell.innerText = data.status;
+                stCell.className = "status " + ((data.status === "Running" || data.status === "Stale") ? "status-running" : "status-stopped");
+            }
+
+            if (btn) {
+                btn.innerText = data.action;
+                btn.className = "action-btn " + (data.action === "Stop" ? "action-stop" : "action-start");
+                btn.setAttribute("onclick", "startStopSupervisor('" + data.action + "')");
+            }
+
+            // If supervisor stopped, immediately flip all sensors to stopped
+            if (data.status === "Stopped") {
+                const tbody = document.getElementById("agents-start-stop-table-body");
+                const rows = tbody ? tbody.querySelectorAll("tr") : [];
+                rows.forEach(row => {
+                    if (row.id === "agent_APM_Supervisor") return;
+                    const statusCell = row.querySelector(".status");
+                    const actionBtn = row.querySelector(".action-btn");
+                    if (statusCell) {
+                        statusCell.innerText = "Stopped";
+                        statusCell.className = "status status-stopped";
                     }
+                    if (actionBtn) {
+                        const agentName = row.querySelector("td") ? row.querySelector("td").innerText : "";
+                        actionBtn.innerText = "Start";
+                        actionBtn.className = "action-btn action-start";
+                        actionBtn.setAttribute("onclick", "startStopAgent('" + agentName + "', 'Start')");
+                    }
+                });
 
-                    // Update counts and button states
-                    document.getElementById('running-count').innerText = data.running_count;
-                    document.getElementById('stopped-count').innerText = data.stopped_count;
+                document.getElementById('running-count').innerText = 0;
+                document.getElementById('stopped-count').innerText = Math.max(0, rows.length - 1);
+                updateRunAllButton();
+            }
+        })
+        .catch(err => console.error('Supervisor action error:', err));
+    }
 
-                    updateRunAllButton();
+    function startStopAgent(agentName, action) {
+        fetch('/Neuromine/LIO/APM/startstop_action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agent_name: agentName, action: action })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.status) return;
+
+            const agentRow = document.getElementById("agent_" + agentName.replace(/\s+/g, "_"));
+            if (agentRow) {
+                const statusCell = agentRow.querySelector('.status');
+                const actionBtn = agentRow.querySelector('.action-btn');
+
+                statusCell.innerText = data.status;
+                statusCell.className = "status " + (data.status === "Running" ? "status-running" : "status-stopped");
+
+                actionBtn.innerText = data.action;
+                actionBtn.className = "action-btn " + (data.action === "Stop" ? "action-stop" : "action-start");
+                actionBtn.setAttribute("onclick", "startStopAgent('" + agentName + "', '" + data.action + "')");
+            }
+
+            document.getElementById('running-count').innerText = data.running_count;
+            document.getElementById('stopped-count').innerText = data.stopped_count;
+            updateRunAllButton();
+        })
+        .catch(error => console.error('Agent action error:', error));
+    }
+
+    function runAllAgents() {
+        fetch('/Neuromine/LIO/APM/startstop_action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: "StartAll" })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status !== "Success") return;
+
+            data.updated_agents.forEach(agent => {
+                const agentRow = document.getElementById("agent_" + agent.name.replace(/\s+/g, "_"));
+                if (agentRow) {
+                    const statusCell = agentRow.querySelector('.status');
+                    const actionBtn = agentRow.querySelector('.action-btn');
+
+                    statusCell.innerText = "Running";
+                    statusCell.className = "status status-running";
+
+                    actionBtn.innerText = "Stop";
+                    actionBtn.className = "action-btn action-stop";
+                    actionBtn.setAttribute("onclick", "startStopAgent('" + agent.name + "', 'Stop')");
                 }
-            })
-            .catch(error => console.error('Error:', error));
-        }
+            });
 
-        function runAllAgents() {
-            fetch('/Neuromine/LIO/APM/startstop_action', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: "StartAll" })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === "Success") {
-                    data.updated_agents.forEach(agent => {
-                        const agentRow = document.getElementById(`agent_${agent.name.replace(/\s+/g, '_')}`);
-                        if (agentRow) {
-                            const statusCell = agentRow.querySelector('.status');
-                            const actionBtn = agentRow.querySelector('.action-btn');
+            document.getElementById('running-count').innerText = data.running_count;
+            document.getElementById('stopped-count').innerText = data.stopped_count;
+            updateRunAllButton();
+        })
+        .catch(error => console.error('RunAll error:', error));
+    }
 
-                            statusCell.innerText = "Running";
-                            statusCell.className = "status status-running";
+    function updateRunAllButton() {
+        const stoppedCount = parseInt(document.getElementById('stopped-count').innerText || "0");
+        document.getElementById("run-all-agents-btn").disabled = (stoppedCount === 0);
+    }
 
-                            actionBtn.innerText = "Stop";
-                            actionBtn.className = "action-btn action-stop";
-                            actionBtn.setAttribute("onclick", `startStopAgent('${agent.name}', 'Stop')`);
-                        }
-                    });
+    // keep your original behavior
+    document.addEventListener("DOMContentLoaded", function () {
+        updateRunAllButton();
+    });
+</script>
 
-                    // Update summary counts
-                    document.getElementById('running-count').innerText = data.running_count;
-                    document.getElementById('stopped-count').innerText = data.stopped_count;
-
-                    updateRunAllButton();
-                }
-            })
-            .catch(error => console.error('Error:', error));
-        }
-
-        function updateRunAllButton() {
-            const stoppedCount = parseInt(document.getElementById('stopped-count').innerText);
-            const runAllButton = document.getElementById("run-all-agents-btn");
-
-            runAllButton.disabled = stoppedCount === 0;
-        }
-    </script>
 </body>
 </html>

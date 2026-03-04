@@ -1,6 +1,6 @@
 {
   "site": "LIO",
-  "debug": true,
+  "debug": false,
         "Mill1PinionConditionScore": {
           "debug": false,
           "Model_Description": "Mill 1 Pinion Condition Score",
@@ -58,7 +58,7 @@
           },
           "Method": {
             "FixedThresholds": {
-              "Active": false,
+              "Active": true,
               "high": {
                 "ns=3;s=\"AI_200-TT-042G\".\"OUT_EU\"": 68.24793004989624,
                 "ns=3;s=\"AI_200-TT-042H\".\"OUT_EU\"": 76.01273202896118,
@@ -75,7 +75,7 @@
               }
             },
             "StatisticalThresholds": {
-                "Active": true
+                "Active": false
               }
           }
         },
@@ -145,7 +145,7 @@
           "Other": {
             "granularity": 15,
             "granularity_type": "seconds",
-            "sampling_freq_seconds": 60,
+            "sampling_freq_seconds": 30,
             "alarm_thresh": 0.75,
             "startup_period": 3,
             "filter_value": 1,
@@ -335,7 +335,7 @@
           },
           "Method": {
             "FixedThresholds": {
-              "Active": false,
+              "Active": true,
                   "high": {
                     "ns=3;s=\"AI_200-TT-042I\".\"OUT_EU\"": 66.94832754135132,
                     "ns=3;s=\"AI_200-TT-042J\".\"OUT_EU\"": 65.34740447998047,
@@ -358,7 +358,7 @@
                 }
             },
             "StatisticalThresholds": {
-                "Active": true
+                "Active": false
           }
         }
     }

@@ -46,6 +46,12 @@ smtp_port = CHANGEME
 generate_emails = CHANGEME
 to_address = CHANGEME
 
+[FLASK]
+host = CHANGEME
+port = CHANGEME
+url_prefix = CHANGEME
+timezone = CHANGEME
+
 [TELEGRAM]
 generate_telegram = CHANGEME
 api_url = CHANGEME
