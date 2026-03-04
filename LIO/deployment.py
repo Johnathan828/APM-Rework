@@ -161,6 +161,7 @@ def _drain_commands(site_root: Path, last_mtime: Optional[float]) -> Tuple[List[
 def _supervisor_pids() -> List[int]:
     """
     Find ALL existing supervisors by cmdline.
+    (Even if workers previously inherited argv, setproctitle will fix that.)
     """
     pattern = r"deployment\.py.*--supervisor"
     try:
@@ -177,20 +178,22 @@ def _supervisor_pids() -> List[int]:
 
 
 def run_supervisor(site_root: Path, override_every: Optional[int], start_all: bool) -> None:
-    # --------------------------
     # SINGLETON GUARD
-    # If ANY other supervisor is already running, exit immediately.
-    # This prevents the multi-supervisor madness even if Flask calls start twice.
-    # --------------------------
     existing = [p for p in _supervisor_pids() if p != os.getpid()]
     if existing:
-        # If we're here, this process is the "new" one.
-        # Exit without doing anything.
         print(f"SUPERVISOR_ALREADY_RUNNING | existing={existing} | exiting", flush=True)
         return
 
     ssot = load_ssot(site_root)
     site_code = str(ssot.get("site", "UNKNOWN"))
+
+    # Set a clear process title (so ps/top doesn't confuse workers/supervisor)
+    try:
+        from setproctitle import setproctitle  # type: ignore
+
+        setproctitle(f"apm_supervisor:{site_code}")
+    except Exception:
+        pass
 
     _pidfile(site_root).write_text(str(os.getpid()))
     print(

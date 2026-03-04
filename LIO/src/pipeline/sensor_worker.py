@@ -100,6 +100,14 @@ def run_sensor_process(site_root: Path, sensor_name: str, every_seconds: int) ->
       - Health-check DB connections each tick (prevents stale pool/conn issues)
       - Write a heartbeat file after each successful tick (for Flask status)
     """
+    # Set a clear process title (so ps/top doesn't confuse this worker with supervisor)
+    try:
+        from setproctitle import setproctitle  # type: ignore
+
+        setproctitle(f"apm_worker:{sensor_name}")
+    except Exception:
+        pass
+
     logger = _configure_sensor_logger(site_root, sensor_name, level=logging.INFO)
 
     db = None
@@ -115,7 +123,7 @@ def run_sensor_process(site_root: Path, sensor_name: str, every_seconds: int) ->
         if pool_closed:
             raise RuntimeError("Postgres pool is closed")
 
-        # MSSQL connection usable? (as_dict=True requires a named column)
+        # MSSQL connection usable?
         try:
             conn = getattr(db_obj, "mssql_conn", None)
             if conn is None:
@@ -150,12 +158,8 @@ def run_sensor_process(site_root: Path, sensor_name: str, every_seconds: int) ->
                     f"DB_READY | sensor={sensor_name} | global_debug={global_debug} | mssql_table={settings.mssql_table}"
                 )
 
-            # Health check before tick (catches stale connections/pools)
             _health_check(db)
 
-            # Run one tick
-            # NOTE: your current run_sensor_once returns None; that's fine.
-            # If you later return latest_ts from run_sensor_once, we'll store it in heartbeat.
             latest_ts = run_sensor_once(
                 ssot=ssot,
                 sensor_name=sensor_name,
@@ -166,7 +170,6 @@ def run_sensor_process(site_root: Path, sensor_name: str, every_seconds: int) ->
                 site_root=site_root,
             )
 
-            # Heartbeat after successful tick
             try:
                 _write_heartbeat(
                     site_root=site_root,
@@ -183,7 +186,6 @@ def run_sensor_process(site_root: Path, sensor_name: str, every_seconds: int) ->
         except Exception as e:
             logger.exception(f"WORKER_TICK_FAIL | err={e}")
 
-            # If DB may be in a bad state, rebuild next loop
             if db is not None:
                 try:
                     db.close()
