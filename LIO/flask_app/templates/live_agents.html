@@ -22,11 +22,63 @@
     .right-alert-plots { width: 100%; grid-column: span 2; height: fit-content; padding: 20px; border: 1px solid #ddd; background-color: #f7f7f7; }
     .alerts { background-color: white; column-span: all; align-content: center; }
     .alert-heading { grid-column: span 2; background-color: #e2e1e9; display: flex; justify-content: center; align-items: center; }
-    .recent_alert_events_view { grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; grid-gap: 6px; background-color: #ffffff; justify-items: stretch; align-items: start; padding: 6px; }
-    .alert_event_overview_feature_plots { width: 100%; display: grid; grid-template-columns: 1fr 1fr; grid-gap: 20px; padding: 15px; background-color: #fdfdfd; }
 
-    #alert_event_overview { width: 90%; padding: 15px; background-color: #ffffff; border: 1px solid #ddd; border-radius: 5px; overflow-x: auto; }
-    #alert_event_overview_plot { width: 90%; height: 400px; padding: 10px; background-color: #ffffff; border: 1px solid #ddd; border-radius: 5px; }
+    /* Recent Alert Events View is a 2-column grid */
+    .recent_alert_events_view {
+      grid-column: span 2;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-gap: 6px;
+      background-color: #ffffff;
+      justify-items: stretch;
+      align-items: start;
+      padding: 6px;
+    }
+
+    /* Make left panel use full width of its column */
+    #alert_event_overview {
+      grid-column: 1;
+      width: 100%;
+      padding: 15px;
+      background-color: #ffffff;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+
+    /* Make model health plot use full width of its column */
+    #alert_event_overview_plot {
+      grid-column: 2;
+      width: 100%;
+      height: 400px;
+      padding: 10px;
+      background-color: #ffffff;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+
+    /* KEY FIX: feature plot section spans BOTH columns and uses the empty space */
+    .alert_event_overview_feature_plots{
+      grid-column: 1 / -1; /* span full row width (both columns) */
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(320px, 1fr));
+      gap: 16px;
+      padding: 15px;
+      background-color: #fdfdfd;
+    }
+
+    .alert_event_overview_feature_plots > div{
+      width: 100%;
+      min-height: 320px;
+    }
+
+    @media (max-width: 1400px){
+      .alert_event_overview_feature_plots{ grid-template-columns: repeat(2, minmax(320px, 1fr)); }
+    }
+    @media (max-width: 900px){
+      .alert_event_overview_feature_plots{ grid-template-columns: 1fr; }
+    }
 
     #plot-container { width: 100%; height: 100%; min-height: 400px; background-color: inherit; }
 

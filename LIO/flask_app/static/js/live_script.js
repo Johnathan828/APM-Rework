@@ -379,11 +379,12 @@ function getAlertDetail(model_name, trigger_time, event) {
       const featurePlotsDiv = document.getElementById("alert_event_overview_feature_plots");
       featurePlotsDiv.innerHTML = "";
 
-      const triggered = new Set((data.triggered_tags || []).map((t) => t.feature));
+      const triggered = new Set(data.triggered_features || []);
       const contribs = data.feature_contributions || {};
 
       Object.keys(contribs).forEach((feature) => {
         const plotContainer = document.createElement("div");
+        plotContainer.style.width = "100%";
         featurePlotsDiv.appendChild(plotContainer);
 
         const featureDic =

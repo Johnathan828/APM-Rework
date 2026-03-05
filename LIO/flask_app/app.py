@@ -655,6 +655,11 @@ def get_alert_detail():
     """
     Recent Alert Events View plots.
     Uses the SAME Plotly-safe timestamp format as get_model_health.
+
+    IMPORTANT:
+      - Your events JSON stores contributions under event_details["top_contributors"]
+        (not "Feature").
+      - Keys in top_contributors match SSOT feature keys (e.g. Mill1PinionConditionScore042G).
     """
     agent_name = request.args.get("agent_name")
     trigger_time = request.args.get("trigger_time")
@@ -662,11 +667,20 @@ def get_alert_detail():
     if not agent_name or not trigger_time:
         return jsonify({"error": "agent_name and trigger_time are required"}), 400
 
-    sensor_key = agent_name
+    # Support both SSOT sensor_key and pretty description
+    description_map = {str(cfg.get("Model_Description", k)): k for k, cfg in data.items()}
+    if agent_name in data:
+        sensor_key = agent_name
+    elif agent_name in description_map:
+        sensor_key = description_map[agent_name]
+    else:
+        return jsonify({"error": f"Unknown agent_name: {agent_name}"}), 400
+
     sensor_cfg = data.get(sensor_key, {}) or {}
     features_cfg = sensor_cfg.get("Features", {}) or {}
 
     try:
+        # Parse trigger_time
         date_to = pd.to_datetime(trigger_time, utc=True, errors="coerce")
         if pd.isna(date_to):
             date_to = pd.to_datetime(trigger_time, errors="coerce")
@@ -677,7 +691,9 @@ def get_alert_detail():
         start_time = date_to_dt - datetime.timedelta(seconds=5)
         pull_start = date_to_dt - datetime.timedelta(hours=5)
 
-        # Event (with contributions)
+        # ---------------------------------------------------------------------
+        # 0) Event (with contributions) from MSSQL events table
+        # ---------------------------------------------------------------------
         events = data_collector.get_model_event_data(
             model_name=[sensor_key],
             start_time=start_time,
@@ -687,16 +703,48 @@ def get_alert_detail():
         if not events:
             return jsonify({"error": "No event found in window"}), 404
 
-        event0 = events[0]
+        # Pick the most recent event in the window (safer than events[0])
+        # in case DB returns unordered rows.
+        try:
+            events_sorted = sorted(
+                events,
+                key=lambda e: pd.to_datetime(e.get("trigger_time"), errors="coerce") or datetime.datetime.min,
+                reverse=True,
+            )
+            event0 = events_sorted[0]
+        except Exception:
+            event0 = events[0]
+
         event_details = event0.get("event_details", {}) or {}
-        contrib = (event_details.get("Feature") or event_details.get("feature") or {}) or {}
 
-        triggered_tags = []
-        for feat_name, v in contrib.items():
-            if feat_name in features_cfg:
-                triggered_tags.append({"feature": feat_name, "value": float(v)})
+        # Your runtime stores contributions under "top_contributors"
+        contrib = (
+            event_details.get("top_contributors")
+            or event_details.get("TopContributors")
+            or event_details.get("Feature")
+            or event_details.get("feature")
+            or {}
+        ) or {}
 
-        # 1) Model score history from MSSQL
+        triggered_tags: List[Dict[str, Any]] = []
+        triggered_features: List[str] = []
+
+        # Only include contributions that match SSOT Features keys
+        for feat_key, raw_val in contrib.items():
+            if feat_key not in features_cfg:
+                continue
+            try:
+                v = float(raw_val)
+            except Exception:
+                continue
+
+            triggered_tags.append({"feature": feat_key, "value": v})
+            if v > 0:
+                triggered_features.append(feat_key)
+
+        # ---------------------------------------------------------------------
+        # 1) Model score history from MSSQL (APM_Scalability / _Dev)
+        # ---------------------------------------------------------------------
         model_df = data_collector.get_neuro_displayname_data(
             date_from=pull_start,
             date_to=date_to_dt,
@@ -708,7 +756,10 @@ def get_alert_detail():
         model_health_data: List[Dict[str, Any]] = []
         if not model_df.empty and sensor_key in model_df.columns:
             mdf = model_df.copy().sort_index()
-            mdf.replace(-1, np.nan, inplace=True)
+
+            # Clean sentinels
+            mdf.replace([-1, -9999999999], np.nan, inplace=True)
+
             mdf.ffill(inplace=True)
             mdf.bfill(inplace=True)
 
@@ -719,7 +770,9 @@ def get_alert_detail():
             for t, v in zip(ts_strings, vals_list):
                 model_health_data.append({"timestamp": t, sensor_key: v})
 
-        # 2) Feature history from Postgres raw tags
+        # ---------------------------------------------------------------------
+        # 2) Feature history from Postgres raw tags (sri_get_tag_data)
+        # ---------------------------------------------------------------------
         tags: List[str] = []
         tag_to_feature: Dict[str, str] = {}
         for feat_name, feat_cfg in features_cfg.items():
@@ -741,23 +794,34 @@ def get_alert_detail():
 
             if not raw_wide.empty:
                 rw = raw_wide.copy().sort_index()
-                rw.replace(-1, np.nan, inplace=True)
+
+                # Clean sentinels
+                rw.replace([-1, -9999999999], np.nan, inplace=True)
+
                 rw.ffill(inplace=True)
                 rw.bfill(inplace=True)
 
                 ts_strings = _to_local_naive_str_list(rw.index)
 
                 for tag_col in rw.columns:
-                    feat_name = tag_to_feature.get(tag_col, tag_col)
+                    feat_name = tag_to_feature.get(tag_col)
+                    if not feat_name:
+                        continue
                     values = _safe_float_list(rw[tag_col])
-                    feature_contributions[feat_name] = [{"timestamp": t, "value": v} for t, v in zip(ts_strings, values)]
+                    feature_contributions[feat_name] = [
+                        {"timestamp": t, "value": v} for t, v in zip(ts_strings, values)
+                    ]
 
         return jsonify(
             {
                 "triggered_tags": triggered_tags,
+                "triggered_features": triggered_features,  # <-- drives highlighting
                 "model_health_data": model_health_data,
                 "feature_contributions": feature_contributions,
                 "model_details": sensor_cfg,
+                # OPTIONAL DEBUG (uncomment if needed)
+                # "debug_event_details_keys": list(event_details.keys()),
+                # "debug_top_contrib_keys": list(contrib.keys())[:20],
             }
         )
 
