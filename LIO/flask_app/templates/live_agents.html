@@ -2,988 +2,160 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Agents Table</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    
-    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.css">
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.js"></script>
-
-    <style>
-
-        /* Grid container for two columns */
-        .grid-container {
-            display: grid;
-            grid-template-columns: 2fr 1fr; /* 3 parts left column, 1 part right column */
-            grid-template-rows: auto auto; /* Two rows, auto height */
-            background-color: whitesmoke;
-            gap: 10px; /* Spacing between the columns */
-            width: 100%; /* Full width for grid */
-        }
-
-        .feature-plots-div {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr; /* 1 parts left column, 1 part right column */
-            grid-template-rows: auto auto auto; /* Two rows, auto height */
-            gap: 5px; /* Spacing between the columns */
-            width: inherit; /* Full width for grid */
-        }
-
-        /* Left column with the table */
-        .display {
-            overflow-x: auto; /* Allows horizontal scrolling if the table is too wide */
-            width: 100%; /* Full width for both columns */
-        }
-
-        /* Right column for additional information */
-        .right-column {
-            grid-column: span 2;
-            padding-left: 20px;
-            border-left: 1px solid #ddd;
-            width: 100%; /* Full width for both columns */
-            background-color: inherit;
-        }
-
-        /* Right column for additional information */
-        .left-column {
-            grid-column: span 2;
-            padding-left: 20px;
-            border-left: 1px solid #ddd;
-            width: 100%; /* Full width for both columns */
-            background-color: #ebedef;
-        }
-
-        .left-model-health {
-            width: 100%;  /* Full width of the parent container */
-            grid-column: span 2;
-            height:fit-content; /* Set a default height or adjust based on content */
-            padding: 20px;
-            border: 1px solid #ddd;
-            background-color: #f7f7f7;
-        }
-        
-        .right-alert-plots {
-            width: 100%;  /* Full width of the parent container */
-            grid-column: span 2;
-            height:fit-content; /* Set a default height or adjust based on content */
-            padding: 20px;
-            border: 1px solid #ddd;
-            background-color: #f7f7f7;
-        }
-        
-        .alerts {
-            background-color: white;
-            column-span: all;
-            align-content: center;
-        }
-        
-        .alert-heading {
-            grid-column: span 2;
-            background-color: #e2e1e9;
-            display: flex;
-            justify-content: center;  /* Horizontally centers content */
-            align-items: center;      /* Vertically centers content */
-        }
-
-        .recent_alert_events_view {
-            grid-column: span 2;
-            display: grid;
-            grid-template-columns: 1fr 1fr; /* Two equal columns */
-            grid-gap: 6px; /* Adds space between columns */
-            background-color: #ffffff;
-            justify-items: stretch;  /* Makes elements take full column width */
-            align-items: start;      /* Aligns items to the top */
-            padding: 6px;           /* Adds padding around the container */
-        }
-
-        .alert_event_overview_feature_plots {
-            width: 100%;
-            display: grid;
-            grid-template-columns: 1fr 1fr; /* Two columns for better visibility */
-            grid-gap: 20px;
-            padding: 15px;
-            background-color: #fdfdfd;
-        }
-
-        #alert_event_overview {
-            width: 90%;              /* Wider table */
-            padding: 15px;
-            background-color: #ffffff;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            overflow-x: auto;        /* Adds horizontal scroll for large tables */
-        }
-        #alert_event_overview_plot {
-            width: 90%;
-            height: 400px;           /* Increases height for better visibility */
-            padding: 10px;
-            background-color: #ffffff;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-        }
-
-        .alert_event_overview_feature_plots {
-            grid-column: span 2;
-            width: 90%;
-            padding: 15px;
-            background-color: #ffffff;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            display: grid;
-            grid-template-columns: 1fr 1fr; /* Adjusts layout for multiple plots */
-            grid-gap: 15px;          /* Adds space between feature plots */
-        }
-
-        /* .feature-plot {
-            min-height: 400px;  
-            height: max-content;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            background-color: #fafafa;
-        } */
-
-
-        #plot-container {
-            width: 100%; /* Full width of the plot */
-            height: 100%; /* Full height of the container */
-            min-height: 400px; /* Ensures there's a minimum height */
-            background-color: inherit;
-        }
-
-
-        /* Table styling */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.7rem; /* Slightly smaller text for readability */
-            width: 100%; /* Full width table */
-        }
-        
-
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background-color: #f2f2f2;
-        }
-
-        tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-
-        /* Styling for the probability bar container */
-        .probability-bar-container {
-            display: inline-block;
-            width: 80px; /* Reduced width for better fit */
-            height: 20px;
-            background-color: #e0e0e0;
-            border-radius: 5px;
-            position: relative;
-        }
-
-        /* Styling for the inner bar (dynamic width based on percentage) */
-        .probability-bar-inner {
-            height: 100%;
-            border-radius: 5px;
-            background-color: green; /* Default color */
-            transition: width 0.4s ease;
-        }
-
-        .lates_results_td[data-status="Triggered"] {
-            color: red;
-        }
-        .lates_results_td[data-status="Normal"] {
-            color: green;
-        }
-        .lates_results_td[data-status="Section Off"] {
-            color: rgb(201, 171, 171);
-        }
-
-        /* Specific styles for different alert levels */
-        .probability-low {
-            background-color: yellow;
-        }
-
-        .probability-high {
-            background-color: red;
-        }
-
-        /* CSS for the spinner */
-        .spinner {
-            border: 6px solid #f3f3f3; /* Light grey */
-            border-top: 6px solid #3498db; /* Blue */
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-        }
-
-        /* Container for the tiles */
-        .tiles-container {
-            display: flex;
-            justify-content: space-around;
-            gap: 20px;
-            padding: 10px;
-            margin-top: 20px;
-            background-color: white;
-        }
-
-        /* Individual tile styling */
-        .tile {
-            background-color: #fff;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            padding: 10px;
-            width: 100px; /* Fixed width for each tile */
-            flex-grow: 1; /* Make the tiles grow equally */
-        }
-
-        .tile h4 {
-            font-size: 1rem;
-            color: #333;
-        }
-
-        .tile p {
-            font-size: 2rem;
-            font-weight: bold;
-            margin: 10px 0 0 0;
-            color: #3498db; /* Blue color for the numbers */
-        }
-
-        /* Add a hover effect to the tiles */
-        .tile:hover {
-            background-color: #f9f9f9;
-            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
-            transition: all 0.3s ease-in-out;
-        }
-        
-        tr.group-header {
-            background-color: #c4c4de;
-            font-weight: bold;
-        }
-
-        /* Keyframes for the spin animation */
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-
-        /* Responsive adjustments */
-        @media (max-width: 768px) {
-            .grid-container {
-                grid-template-columns: 1fr; /* Stack the columns on small screens */
-            }
-            .tiles-container {
-                flex-direction: column; /* Stack the tiles vertically on small screens */
-            }
-            .tile {
-                width: 100%; /* Full width for each tile on small screens */
-            }
-
-            table {
-                font-size: 0.8rem;
-            }
-        }
-    </style>
-
-    <script>
-
-        
-        console.log("Using base URL:", baseUrl); // For debugging
-        const staticBase = "{{ url_for('static', filename='') }}";  // → "/Neuromine/Gamsberg/APM/static/"
-        
-        // Set the base URL dynamically based on the current URL
-//         const baseUrl = window.location.pathname.replace(/\/$/, "") + "/"; // Ensures trailing slash
-        
-         console.log("Using base URL:", baseUrl); // For debugging
-        
-        // Global variable to track if the fetch is automatic or manual
-        let isAutomaticFetch = false;
-        let selectedAgentName = null; // Global variable to track the selected agent
-        
-        // $(document).ready(function () {
-        //     $('#agents-table').DataTable();
-        // });
-
-        function fetchLiveUpdates() {
-            
-            let url = baseUrl + 'lives_agents_data';
-
-            // Append the selectedAgentName as a query parameter if it's set
-            if (selectedAgentName) {
-                url += `?agent_name=${encodeURIComponent(selectedAgentName)}`;
-            }
-            
-            console.log("Fetching URL: ", url);
-            
-            // Use the dynamically constructed URL
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    let tbody = document.getElementById('agents-table-body');
-                    let alertTbody = document.getElementById('alert-events-table');
-
-                    // Clear current table rows
-                    tbody.innerHTML = '';
-                    alertTbody.innerHTML = '';
-
-                    // Event Summary: Elements for stats
-                    let totalAnomaliesElem = document.getElementById('total-events');
-                    let averageHealthElem = document.getElementById('average-event-health');
-                    let totalMonitoredSectionsElem = document.getElementById('total-monitored-sections');
-                    let totalTagInputsElem = document.getElementById('Total-Tag-Inputs');
-
-                    // Assign Stats
-                    let totalEvents = data.summary_stats.Total_events;
-                    let eventAverageHealth = data.summary_stats.average_health;
-                    let totalMonitoredSections = data.summary_stats.Total_monitored_sections;
-                    let totalTagInputs = data.summary_stats.total_tag_inputs;
-
-                    // Update the HTML values
-                    totalAnomaliesElem.textContent = totalEvents;
-                    averageHealthElem.textContent = `${eventAverageHealth}%`;
-                    totalMonitoredSectionsElem.textContent = totalMonitoredSections;
-                    totalTagInputsElem.textContent = totalTagInputs;
-
-                    tbody.innerHTML = ''; // Clear current table rows
-                    alertTbody.innerHTML = '';  // Clear current table rows for alerts
-
-                    let totalAnomalies = 0; // Initialize total anomalies
-                    let totalAlertProbability = 0; // To calculate average health
-                    let runningModels = data.models.length; // Number of agents/models
-                    let off_sections = 0
-                    let normal_sections = 0
-
-                    data.models.forEach(model => {
-                        // Add the agent rows to the left-column table
-                        let row = `
-                        <tr>
-                            <td>${model.plant_section}</td>
-                            <td><a href="#" onclick="setSelectedAgent('${model.agent_name}', event)">${model.agent_name}</a></td>
-                            <td>${model.type}</td>
-                            <td class="lates_results_td" data-status="${model.latest_result}">${model.latest_result}</td>
-                            <td>${model.probability_date}</td>
-                            <td style="display: flex; align-items: center;">
-                                <div class="probability-bar-container" style="width: 80px; height: 25px; margin-right: 10px;">
-                                    <div class="probability-bar-inner"
-                                        style="width: ${model.alert_probability}%; 
-                                                height: 100%;
-                                        background-color: ${model.latest_result == "No Data" ? 'grey' :model.latest_result == "Section Off" ? 'grey' : model.latest_result == "Normal" ? 'green' : model.latest_result == "Warning" ? 'Yellow' : 'red'};">
-
-                                    </div>
-                                </div>
-                                <span style="font-weight: bold;">${model.alert_probability}%</span>
-                            </td>
-                        </tr>
-                        `;
-                        tbody.innerHTML += row;
-
-                        // Check if the alert probability is less than 67 and the latest result is 'Triggered'
-                        if (model.alert_probability < 67 && model.latest_result === 'Triggered') {
-                            totalAnomalies++;
-                        }
-                        
-                        // Check if the alert probability is less than 67 and the latest result is 'Triggered'
-                        if (model.latest_result === 'Section Off') {
-                            off_sections++;
-                        }
-                        // Check if the alert probability is less than 67 and the latest result is 'Triggered'
-                        if (model.latest_result === 'Normal') {
-                            normal_sections++;
-                        }
-
-
-                        // Accumulate total alert probability for average calculation
-                        totalAlertProbability += model.alert_probability;
-
-                        // Check for events and add them to the alert-events table
-                        if (model.events && model.events.length > 0) {
-                            model.events.forEach(event => {
-                                let alertRow = `
-                                <tr>
-                                    <td><a href="#" onclick="getAlertDetail('${event.model_name}', '${event.trigger_time}', event)">${event.model_name}</a></td>
-                                    <td>${event.model_type}</td>
-                                    <td>Triggered</td>
-                                    <td>${event.trigger_time}</td>
-                                    <td>${model.probability_date}</td>
-                                    <td>${event.score}%</td>
-                                    <td>${event.level}</td>
-                                </tr>
-                                `;
-                                alertTbody.innerHTML += alertRow;
-
-                            });
-                        }
-                    });
-                
-                    // sort the table
-                    groupAndSortTable(data.models);
-
-
-                    // Calculate average health as the average of alert probabilities
-                    let averageHealth = Math.round(totalAlertProbability / runningModels);
-
-                    // Update tiles with the calculated values
-                    updateTiles(totalAnomalies, averageHealth, runningModels, off_sections, normal_sections);
-                })
-                .catch(error => console.error('Error fetching data:', error));
-        }
-        
-        // sort the agents table 
-        function groupAndSortTable(models) {
-            const tbody = document.getElementById("agents-table-body");
-
-            // Group models by `plant_section`
-            const groups = models.reduce((acc, model) => {
-                if (!acc[model.plant_section]) {
-                    acc[model.plant_section] = [];
-                }
-                acc[model.plant_section].push(model);
-                return acc;
-            }, {});
-
-            // Sort groups by `alert_probability`
-            Object.keys(groups).forEach(plantSection => {
-                groups[plantSection].sort((a, b) => a.alert_probability - b.alert_probability);
-            });
-
-            // Clear the table body
-            tbody.innerHTML = '';
-
-            // Append grouped and sorted rows to the table
-            Object.keys(groups).sort().forEach(plantSection => {
-                const safeName = plantSection.replace(/\s+/g, '_');
-                const models = groups[plantSection];
-
-                // Add the group header
-                const groupHeader = `
-                <tr>
-                <td colspan="6" style="font-weight: bold; background: #b2babb ; text-align: center; font-size: 1.5rem; margin_top: 10px;">
-                    ${plantSection}
-                </td>
-                </tr>
-                `;
-                tbody.innerHTML += groupHeader;
-
-                // Render rows for the group
-                models.forEach((model, index) => {
-                    const imageUrl = `${baseUrl}get-image/${safeName}.gif`;
-                    const imageCell = index === 0
-                        ? `<td rowspan="${models.length}" style="text-align: center; vertical-align: middle; background: white;">
-                            <img src="${imageUrl}" 
-                                    alt="${plantSection}" 
-                                    style="height: 150px;"> 
-                        </td>`
-                        : '';
-
-                    const row = `
-                    <tr>
-                        ${imageCell}
-                        <td><a href="#" onclick="setSelectedAgent('${model.agent_name}', event)">${model.agent_name}</a></td>
-                        <td>${model.type}</td>
-                        <td class="lates_results_td" data-status="${model.latest_result}">${model.latest_result}</td>
-                        <td>${model.probability_date}</td>
-                        <td style="display: flex; align-items: center;">
-                            <div class="probability-bar-container" style="width: 80px; height: 25px; margin-right: 10px;">
-                                <div class="probability-bar-inner"
-                                    style="width: ${model.alert_probability}%; 
-                                        height: 100%;
-                                        background-color: ${model.latest_result == "No Data" ? 'grey' :model.latest_result == "Section Off" ? 'grey' : model.latest_result == "Normal" ? 'green' : model.latest_result == "Warning" ? 'Yellow' : 'red'};">
-
-                                </div>
-                            </div>
-                            <span style="font-weight: bold;">${model.alert_probability}%</span>
-                        </td>
-                    </tr>
-                    `;
-                    tbody.innerHTML += row;
-                });
-            });
-        }
-
-
-        // Function to set the selected agent and fetch its health data
-        function setSelectedAgent(agentName, event) {
-            console.log("Selected Agent: ", agentName); // Debug log
-            if (event) event.preventDefault(); // Prevent the anchor's default behavior
-            
-            selectedAgentName = agentName; // Update the selected agent name globally
-            isAutomaticFetch = false; // Mark this as a manual fetch
-            fetchModelHealth(agentName); // Fetch the model health immediately when the agent is selected
-            fetchLiveUpdates() // Also Update Tables of model selection
-        }
-
-        
-        function getAlertDetail(model_name, trigger_time, event) {
-            if (event) event.preventDefault(); // Prevent the anchor's default behavior
-
-            let url = baseUrl + 'get_alert_detail';
-
-            if (model_name) {
-                url += `?agent_name=${encodeURIComponent(model_name)}`;
-            }
-            if (trigger_time) {
-                url += `&trigger_time=${encodeURIComponent(trigger_time)}`;
-            }
-
-            // Show the loading spinner
-            const loadingSpinner = document.getElementById("loading-spinner-alerts");
-            loadingSpinner.style.display = "block";
-
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    // Hide the loading spinner once data is fetched
-                    loadingSpinner.style.display = "none";
-
-                    if (data.error) {
-                        console.error("Error fetching data:", data.error);
-                        return;
-                    }
-
-                    // Get the table container and clear its content
-                    const tableContainer = document.getElementById("triggered-tags-table-container");
-                    tableContainer.innerHTML = ""; // Clear only the table content, keeping the spinner and header
-
-                    // Create and populate the table dynamically
-                    const tagsTable = document.createElement("table");
-                    const headerRow = "<tr><th>Tag</th><th>Tag description</th><th>Contrubution %</th></tr>";
-                    tagsTable.insertAdjacentHTML('afterbegin', headerRow);
-
-                    data.triggered_tags.forEach(tag => {
-                        const row = document.createElement("tr");
-                        row.innerHTML = `<td>${data.model_details['Features'][tag.feature]['tag']}</td><td>${data.model_details['Features'][tag.feature]['description']}</td><td>${(tag.value * 100).toFixed(2)}%</td>`;
-                        tagsTable.appendChild(row);
-                    });
-
-                    // Append the populated table to the container
-                    tableContainer.appendChild(tagsTable);
-
-                    // Populate Model Health Plot
-                    const healthPlotDiv = document.getElementById("alert_event_overview_plot");
-                    // healthPlotDiv.innerHTML = "<h4>Model Health Plot</h4>";
-                    plotModelHealth(data.model_health_data, healthPlotDiv, data.model_details);
-
-                    // Populate Feature Contributions
-                    const featurePlotsDiv = document.getElementById("alert_event_overview_feature_plots");
-                    featurePlotsDiv.innerHTML = ''
-                    Object.keys(data.feature_contributions).forEach(feature => {
-                        const plotContainer = document.createElement("div");
-                        plotContainer.classList.add("feature-plot");
-                        featurePlotsDiv.appendChild(plotContainer);
-
-                        const featureDic = data.model_details["Features"][feature] || data.model_details["filter_tag"]["description"];
-
-                        // Check if the feature is in data.triggered_tags
-                        const isHighlighted = data.triggered_tags.some(tag => tag.feature === feature);
-
-                        // Pass the isHighlighted flag to plotFeatureContribution
-                        plotFeatureContribution(data.feature_contributions[feature], plotContainer, featureDic, isHighlighted);
-                    });
-
-                })
-                .catch(error => {
-                    console.error("Error fetching data:", error);
-                    // Hide the loading spinner if an error occurs
-                    loadingSpinner.style.display = "none";
-                });
-        }
-
-
-        function plotModelHealth(modelHealthData, container, model_details ) {
-            const xValues = modelHealthData.map(entry => new Date(entry.timestamp).toISOString());  // Convert timestamp to ISO string for Plotly
-
-            // Dynamically access the key for the model health score
-            const modelKey = Object.keys(modelHealthData[0]).find(key => key !== 'timestamp');  // Find the key that is not 'timestamp'
-            const yValues = modelHealthData.map(entry => entry[modelKey]);  // Access values dynamically using the key
-
-            const trace = { x: xValues, y: yValues, type: 'scatter', line: { color: 'blue' } };
-            const layout = { title: `${model_details['Model_Description']}` };  // Include modelKey in the title
-            Plotly.newPlot(container, [trace], layout);
-        }
-        
-        // Function to generate random color in HEX format
-        function getRandomColor() {
-            const letters = '0123456789ABCDEF';
-            let color = '#';
-            for (let i = 0; i < 6; i++) {
-                color += letters[Math.floor(Math.random() * 16)];
-            }
-            return color;
-        }
-
-        function plotFeatureContribution(featureData, container, model_details, isHighlighted) {
-            // Convert timestamps to ISO strings
-            const xValues = featureData.map(entry => new Date(entry.timestamp).toISOString());
-            const yValues = featureData.map(entry => entry.value);
-
-            const trace = {
-                x: xValues,
-                y: yValues,
-                type: 'scatter',
-                line: { color: getRandomColor() }  // Assign a random color to the trace line
-            };
-
-            // Check if model_details is a string or an object
-            const title = typeof model_details === 'string' ? model_details : model_details['description'];
-
-            // Set Plot Height and Background Color Conditionally
-            const plotHeight = 300;
-            const layout = {
-                title: {
-                    text: title,  // Use the resolved title based on model_details type
-                    font: {
-                        size: 12  // Set the font size for the title
-                    }
-                },
-                xaxis: {
-                    title: 'Date',  // X-axis label
-                    type: 'date',  // Ensure x-axis is treated as date
-                    tickformat: '%Y-%m-%d %H:%M',
-                    hoverformat: '%Y-%m-%d %H:%M',
-                    showgrid: true,
-                    line: {
-                        color: 'black',  // Set axis line color to a fixed color if needed
-                        width: 2  // Line width for axis
-                    }
-                },
-                yaxis: typeof model_details === 'object' ? {
-                    title: `${model_details["unit_description"]} (${model_details["unit"]})`,  // Y-axis label
-                    showgrid: true,
-                    line: {
-                        color: 'black',  // Set y-axis line color if needed
-                        width: 2  // Line width for y-axis
-                    }
-                } : {},  // Empty object if y-axis title should not be set
-                plot_bgcolor: isHighlighted ? '#ffefef' : 'white',  // Highlighted background if triggered, otherwise white
-                autosize: true,
-                height: plotHeight
-            };
-
-            Plotly.newPlot(container, [trace], layout);
-        }
-
-        // Function to fetch health details of the selected agent and plot it using Plotly.js
-        function fetchModelHealth(agentName) {
-            // Show the loading spinner only if it's a manual fetch
-            if (!isAutomaticFetch) {
-                document.getElementById('loading-spinner').style.display = 'block';
-            }
-
-            fetch(`${baseUrl}get_model_health?agent_name=${encodeURIComponent(agentName)}`)
-                .then(response => response.json())
-                .then(data => {
-                    // At this point, the data is ready, now we can clear the previous content
-                    let plotDiv = document.getElementById('plot-container');
-                    let healthInfo = document.getElementById('health-info');
-                    let features = document.getElementById('feature-plots');
-
-                    // Clear the old plot and info only when the new data is ready to be plotted
-                    plotDiv.innerHTML = ''; 
-                    healthInfo.innerHTML = '';
-                    features.innerHTML = '';
-
-                    // Hide the loading spinner when data is loaded
-                    document.getElementById('loading-spinner').style.display = 'none';
-
-                    // Prepare data for Plotly
-                    const healthTrace = {
-                        x: data.timestamps, // Timestamps on the X-axis (formatted as dates)
-                        y: data.health_scores, // Health scores on the Y-axis
-                        mode: 'lines',
-                        type: 'scatter',
-                        name: 'Health Score'
-                    };
-
-                    // Plot layout with responsive sizing
-                    const healthLayout = {
-                        title: `Health Score for ${agentName}`,
-                        xaxis: {
-                            title: 'Time',
-                            type: 'date',
-                            tickformat: '%Y-%m-%d %H:%M',
-                            hoverformat: '%Y-%m-%d %H:%M',
-                            showgrid: true,
-                        },
-                        yaxis: {
-                            title: 'Health Score',
-                            range: [0, 100],
-                            showgrid: true
-                        },
-                        autosize: true,
-                        legend: {
-                            orientation: 'h',  // Horizontal legend layout
-                            y: -0.3  // Positioning the legend below the plot, adjust y to control distance
-                        }
-                    };
-
-                    const config = { responsive: true };
-
-                    // Render the health score plot using Plotly.js
-                    Plotly.newPlot(plotDiv, [healthTrace], healthLayout, config);
-
-                    // Plot each feature in its own plot ############################################# Features
-                    const plotHeight = 300;
-                
-                    Object.keys(data.feature_df).forEach((featureName, index) => {
-                        // Create a new div for each feature plot
-                        const featureDiv = document.createElement('div');
-                        featureDiv.id = `feature-plot-${index}`;
-                        featureDiv.style.marginBottom = '30px'; // Add some space between plots
-                        features.appendChild(featureDiv);  // Append the new div to the features container
-
-                        // Prepare the trace for the current feature
-                        const featureTrace = {
-                            x: data.feature_timestamps,  // Use the timestamps for the x-axis
-                            y: data.feature_df[featureName],  // Feature values for each column
-                            mode: 'lines',
-                            type: 'scatter',
-                            name: featureName,  // Column name as the trace name
-                            line: {
-                                color: getRandomColor(),  // Assign a random color
-                                width: 2  // Line width
-                            }
-                        };
-
-                        // Layout for the individual feature plot
-                        const featureLayout = {
-                            title: {
-                                text: data.feature_details['Features'] && data.feature_details['Features'][featureName]
-                                    ? data.feature_details['Features'][featureName]['description']
-                                    : 'Unknown Feature',  // Fallback title if feature details are missing
-                                font: {
-                                    size: 12  // Set the font size for the title
-                                }
-                            },
-                            xaxis: {
-                                title: 'Time',
-                                type: 'date',
-                                tickformat: '%Y-%m-%d %H:%M',
-                                hoverformat: '%Y-%m-%d %H:%M',
-                                showgrid: true,
-                            },
-                            yaxis: data.feature_details['Features'] && data.feature_details['Features'][featureName]
-                                ? {
-                                    title: `${data.feature_details['Features'][featureName]['unit_description']} (${data.feature_details['Features'][featureName]['unit']})`,
-                                    showgrid: true
-                                }
-                                : {},  // Empty object if y-axis title should not be set
-                            autosize: true,
-                            height: plotHeight, // Set the height for the plot
-                        };
-
-
-                        // Dynamically set plot_bgcolor only if the feature state for this feature is greater than 0
-                        if (data.feature_state[featureName] > 0) {
-                            featureLayout.plot_bgcolor = 'rgba(255, 18, 47, 0.2)';
-                        }
-
-                        // Render the individual plot in the newly created div
-                        Plotly.newPlot(featureDiv, [featureTrace], featureLayout, config);
-                    });
-                })
-                .catch(error => {
-                    // Hide the loading spinner if there’s an error
-                    document.getElementById('loading-spinner').style.display = 'none';
-                    console.error('Error fetching model health:', error);
-                });
-        }
-
-
-        // Function to update the tile values dynamically
-        function updateTiles(totalAnomalies, averageHealth, anotherTotal, offSections, normalSections) {
-            document.getElementById('total-anomalies').textContent = totalAnomalies;
-            document.getElementById('average-health').textContent = `${averageHealth}%`;
-            document.getElementById('another-total').textContent = anotherTotal;
-            document.getElementById('latest-results-on').textContent = normalSections;
-            document.getElementById('latest-results-off').textContent = offSections;
-        }
-
-        // Run the function immediately and then every 60 seconds
-        function fetchUpdates() {
-            fetchLiveUpdates();
-
-            // If an agent has been selected, fetch its health data automatically
-            if (selectedAgentName) {
-                isAutomaticFetch = true; // Mark this as an automatic fetch
-                fetchModelHealth(selectedAgentName);
-            }
-        }
-
-        // Run the function immediately when the page loads
-        fetchUpdates();
-        // Set an interval to fetch updates every 5 minutes
-        setInterval(fetchUpdates, 300000); // 300000 ms = 5 minutes 
-
-
-        // Fetch immediately on page load
-        window.onload = fetchLiveUpdates;
-    </script>
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Agents Table</title>
+
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+  <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.css">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.js"></script>
+
+  <style>
+    .grid-container { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: auto auto; background-color: whitesmoke; gap: 10px; width: 100%; }
+    .feature-plots-div { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: auto auto auto; gap: 5px; width: inherit; }
+    .display { overflow-x: auto; width: 100%; }
+    .right-column { grid-column: span 2; padding-left: 20px; border-left: 1px solid #ddd; width: 100%; background-color: inherit; }
+    .left-column { grid-column: span 2; padding-left: 20px; border-left: 1px solid #ddd; width: 100%; background-color: #ebedef; }
+    .left-model-health { width: 100%; grid-column: span 2; height: fit-content; padding: 20px; border: 1px solid #ddd; background-color: #f7f7f7; }
+    .right-alert-plots { width: 100%; grid-column: span 2; height: fit-content; padding: 20px; border: 1px solid #ddd; background-color: #f7f7f7; }
+    .alerts { background-color: white; column-span: all; align-content: center; }
+    .alert-heading { grid-column: span 2; background-color: #e2e1e9; display: flex; justify-content: center; align-items: center; }
+    .recent_alert_events_view { grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; grid-gap: 6px; background-color: #ffffff; justify-items: stretch; align-items: start; padding: 6px; }
+    .alert_event_overview_feature_plots { width: 100%; display: grid; grid-template-columns: 1fr 1fr; grid-gap: 20px; padding: 15px; background-color: #fdfdfd; }
+
+    #alert_event_overview { width: 90%; padding: 15px; background-color: #ffffff; border: 1px solid #ddd; border-radius: 5px; overflow-x: auto; }
+    #alert_event_overview_plot { width: 90%; height: 400px; padding: 10px; background-color: #ffffff; border: 1px solid #ddd; border-radius: 5px; }
+
+    #plot-container { width: 100%; height: 100%; min-height: 400px; background-color: inherit; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+
+    .probability-bar-container { display: inline-block; width: 80px; height: 20px; background-color: #e0e0e0; border-radius: 5px; position: relative; }
+    .probability-bar-inner { height: 100%; border-radius: 5px; background-color: green; transition: width 0.4s ease; }
+
+    .lates_results_td[data-status="Triggered"] { color: red; }
+    .lates_results_td[data-status="Normal"] { color: green; }
+    .lates_results_td[data-status="Section Off"] { color: rgb(201, 171, 171); }
+
+    .spinner { border: 6px solid #f3f3f3; border-top: 6px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    .tiles-container { display: flex; justify-content: space-around; gap: 20px; padding: 10px; margin-top: 20px; background-color: white; }
+    .tile { background-color: #fff; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; padding: 10px; width: 100px; flex-grow: 1; }
+    .tile h4 { font-size: 1rem; color: #333; }
+    .tile p { font-size: 2rem; font-weight: bold; margin: 10px 0 0 0; color: #3498db; }
+  </style>
+
+  <!-- Provide baseUrl for external JS -->
+  <script>
+    window.baseUrl = "{{ base_url }}";  // e.g. "/Neuromine/LIO/APM/"
+    console.log("window.baseUrl =", window.baseUrl);
+  </script>
+
+  <!-- Load your script once -->
+  <script src="{{ url_for('static', filename='js/live_script.js') }}"></script>
 </head>
 
 <body>
+  <h2>Live Agents</h2>
 
-    <h2>Live Agents</h2>
-
-    <div class="grid-container">
-        <!-- Right column: Placeholder for other information -->
-        <div class="right-column">
-            <div class="tiles-container">
-                <div class="tile">
-                    <h4>Total Triggered</h4>
-                    <p id="total-anomalies">0</p> <!-- Dynamic value for total anomalies -->
-                </div>
-                <div class="tile">
-                    <h4>Average Health</h4>
-                    <p id="average-health">0%</p> <!-- Dynamic value for average health -->
-                </div>
-                <div class="tile">
-                    <h4>Total Running Agents</h4>
-                    <p id="another-total">0</p> <!-- Dynamic value for another total -->
-                </div>
-                <div class="tile">
-                    <h4>Latest Results - On</h4>
-                    <p id="latest-results-on">0</p> <!-- Dynamic value for another total -->
-                </div>
-                <div class="tile">
-                    <h4>Latest Results - Off</h4>
-                    <p id="latest-results-off">0</p> <!-- Dynamic value for another total -->
-                </div>
-            </div>
-            <p >Overall Performance for All Models</p>
-        </div>
-
-        <!-- Left column: table -->
-         <div class = "alert-heading"><h5>Live Models Score per Section</h5></div>
-        <div class="left-column">
-            <table id="agents-table" class="display">
-                <thead>
-                    <tr>
-                        <th></th>
-                        <th>Agent Name</th>
-                        <th>Type</th>
-                        <th>Latest Result</th>
-                        <th>Latest Update</th>
-                        <th>Health Score</th>
-                    </tr>
-                </thead>
-                <tbody id="agents-table-body">
-                    <!-- Rows dynamically populated -->
-                </tbody>
-            </table>
-        </div>
-        
-        <!-- Right column: Placeholder for other information -->
-        <div class = "alert-heading"><h4>Health Score</h4></div>
-        <div class="left-model-health">
-            <!-- Spinner -->
-            <div id="loading-spinner" style="display: none;">
-                <div class="spinner"></div>
-                <p>Loading data...</p>
-            </div>
-        
-            <!-- Plot container -->
-            <div id="plot-container">
-                <!-- Plotly plot will be injected here -->
-            </div>
-        
-            <!-- Additional information container -->
-            <div id="health-info"></div>
-        </div>
-        
-
-        
-        <!-- Right column: Placeholder for other information -->
-        <div class = "alert-heading"><h5>Health Score Contributors</h5></div>
-        <div class="right-alert-plots">
-            <div class = "feature-plots-div" id = "feature-plots">Feature Plots Area</div>
-        </div>
-        
-        <!-- Right column: Placeholder for other information -->
-        <div class = "alert-heading"><h4>Recent Alert</h4></div>
-        <div class="alerts">
-            <div id = "alert-events">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Agent Name</th>
-                            <th>Type</th>
-                            <th>Latest Result</th>
-                            <th>Trigger Date</th>
-                            <th>Latest Update</th>
-                            <th>Health Score</th>
-                            <th>Level</th>
-                        </tr>
-                    </thead>
-                    <tbody id="alert-events-table">
-
-                    </tbody>
-                </table>
-
-            </div>
-                
-        </div>
-        
-        <!-- Right column: Placeholder for other information -->
-        <div class="right-column">
-            <div class="tiles-container">
-                <div class="tile">
-                    <h4>Total Anomalies</h4>
-                    <p id="total-events">0</p> <!-- Dynamic value for total anomalies -->
-                </div>
-                <div class="tile">
-                    <h4>Average Health</h4>
-                    <p id="average-event-health">0%</p> <!-- Dynamic value for average health -->
-                </div>
-                <div class="tile">
-                    <h4>Total Monitored Sections</h4>
-                    <p id="total-monitored-sections">0</p> <!-- Dynamic value for average health -->
-                </div>
-                <div class="tile">
-                    <h4>Total Tag Inputs</h4>
-                    <p id="Total-Tag-Inputs">0</p> <!-- Dynamic value for average health -->
-                </div>
-            </div>
-        </div>
-
-        <!-- This block plots the alerted features on the Model -->
-        <div class = "alert-heading"><h4>Recent Alert Events View</h4></div>
-        <div class = "recent_alert_events_view" id = "recent_alert_events_view">
-            
-            <!-- Holds Feature table -->
-            <div id="alert_event_overview">
-                <div id="loading-spinner-alerts" style="display: none;">
-                    <div class="spinner"></div>
-                    <p>Loading data...</p>
-                </div>
-
-                <h4>Triggered Tags</h4>
-
-                <!-- Separate container for the table content -->
-                <div id="triggered-tags-table-container"></div>
-            </div>
-
-            <!-- Holds Model Health Score for 6hr Leading to event -->
-            <div id = "alert_event_overview_plot">
-                <h4>Model Health Plots</h4>
-            </div>
-            <!-- Holds Model Feature Contributions Plots -->
-            <div class = "alert_event_overview_feature_plots" id = "alert_event_overview_feature_plots">
-            </div>
-        </div>
-
+  <div class="grid-container">
+    <div class="right-column">
+      <div class="tiles-container">
+        <div class="tile"><h4>Total Triggered</h4><p id="total-anomalies">0</p></div>
+        <div class="tile"><h4>Average Health</h4><p id="average-health">0%</p></div>
+        <div class="tile"><h4>Total Running Agents</h4><p id="another-total">0</p></div>
+        <div class="tile"><h4>Latest Results - On</h4><p id="latest-results-on">0</p></div>
+        <div class="tile"><h4>Latest Results - Off</h4><p id="latest-results-off">0</p></div>
+      </div>
+      <p>Overall Performance for All Models</p>
     </div>
 
+    <div class="alert-heading"><h5>Live Models Score per Section</h5></div>
+    <div class="left-column">
+      <table id="agents-table" class="display">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Agent Name</th>
+            <th>Type</th>
+            <th>Latest Result</th>
+            <th>Latest Update</th>
+            <th>Health Score</th>
+          </tr>
+        </thead>
+        <tbody id="agents-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="alert-heading"><h4>Health Score</h4></div>
+    <div class="left-model-health">
+      <div id="loading-spinner" style="display:none;">
+        <div class="spinner"></div>
+        <p>Loading data...</p>
+      </div>
+      <div id="plot-container"></div>
+      <div id="health-info"></div>
+    </div>
+
+    <div class="alert-heading"><h5>Health Score Contributors</h5></div>
+    <div class="right-alert-plots">
+      <div class="feature-plots-div" id="feature-plots">Feature Plots Area</div>
+    </div>
+
+    <div class="alert-heading"><h4>Recent Alert</h4></div>
+    <div class="alerts">
+      <div id="alert-events">
+        <table>
+          <thead>
+            <tr>
+              <th>Agent Name</th>
+              <th>Type</th>
+              <th>Latest Result</th>
+              <th>Trigger Date</th>
+              <th>Latest Update</th>
+              <th>Health Score</th>
+              <th>Level</th>
+            </tr>
+          </thead>
+          <tbody id="alert-events-table"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="right-column">
+      <div class="tiles-container">
+        <div class="tile"><h4>Total Anomalies</h4><p id="total-events">0</p></div>
+        <div class="tile"><h4>Average Health</h4><p id="average-event-health">0%</p></div>
+        <div class="tile"><h4>Total Monitored Sections</h4><p id="total-monitored-sections">0</p></div>
+        <div class="tile"><h4>Total Tag Inputs</h4><p id="Total-Tag-Inputs">0</p></div>
+      </div>
+    </div>
+
+    <div class="alert-heading"><h4>Recent Alert Events View</h4></div>
+    <div class="recent_alert_events_view" id="recent_alert_events_view">
+      <div id="alert_event_overview">
+        <div id="loading-spinner-alerts" style="display:none;">
+          <div class="spinner"></div>
+          <p>Loading data...</p>
+        </div>
+
+        <h4>Triggered Tags</h4>
+        <div id="triggered-tags-table-container"></div>
+      </div>
+
+      <div id="alert_event_overview_plot">
+        <h4>Model Health Plots</h4>
+      </div>
+
+      <div class="alert_event_overview_feature_plots" id="alert_event_overview_feature_plots"></div>
+    </div>
+  </div>
 </body>
 
 </html>
