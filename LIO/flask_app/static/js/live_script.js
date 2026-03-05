@@ -132,7 +132,7 @@ function fetchLiveUpdates() {
             tbody.innerHTML += row;
 
             if ((model.alert_probability ?? 100) < 67 && model.latest_result === "Triggered") totalTriggered++;
-            if (model.latest_result === "Section Off") off_sections++;
+            if (model.latest_result === "Section Off" || model.latest_result == "Stopped") off_sections++;
             if (model.latest_result === "Normal") normal_sections++;
 
             // Alerts table

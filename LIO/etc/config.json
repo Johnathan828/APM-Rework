@@ -53,7 +53,7 @@
             "alarm_thresh": 0.75,
             "startup_period": 3,
             "filter_value": 1,
-            "alert_holding_minutes": 15,
+            "alert_holding_minutes": 60,
             "email_inflight_timeout_minutes": 30
           },
           "Method": {
@@ -149,7 +149,7 @@
             "alarm_thresh": 0.75,
             "startup_period": 3,
             "filter_value": 1,
-            "alert_holding_minutes": 15,
+            "alert_holding_minutes": 60,
             "email_inflight_timeout_minutes": 30
           },
           "Method": {
@@ -234,7 +234,7 @@
             "alarm_thresh": 0.75,
             "startup_period": 3,
             "filter_value": 1,
-            "alert_holding_minutes": 15,
+            "alert_holding_minutes": 60,
             "email_inflight_timeout_minutes": 30
           },
           "Method": {
@@ -330,7 +330,7 @@
             "alarm_thresh": 0.75,
             "startup_period": 3,
             "filter_value": 1,
-            "alert_holding_minutes": 15,
+            "alert_holding_minutes": 60,
             "email_inflight_timeout_minutes": 30
           },
           "Method": {
