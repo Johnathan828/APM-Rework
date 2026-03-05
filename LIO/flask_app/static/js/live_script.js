@@ -9,12 +9,10 @@ function base() {
 }
 
 // Convert "YYYY-MM-DD HH:MM:SS" -> "YYYY-MM-DDTHH:MM:SS"
-// Helps Plotly parse reliably. If already ISO, return as-is.
 function toIsoish(ts) {
   if (!ts) return ts;
   if (typeof ts !== "string") return ts;
   if (ts.includes("T")) return ts;
-  // only replace first space (date/time separator)
   return ts.replace(" ", "T");
 }
 
@@ -68,8 +66,6 @@ function fetchLiveUpdates() {
       let off_sections = 0;
       let normal_sections = 0;
 
-      // This remains "Total Running Agents" in your UI (it’s really "total models returned")
-      // If you later want it to show only ON sensors, we can change it similarly.
       const totalModels = models.length;
 
       // Group by plant_section (legacy)
@@ -159,7 +155,7 @@ function fetchLiveUpdates() {
           });
         });
 
-      // ✅ FIX: Use backend-computed overall average that EXCLUDES "Section Off"
+      // Average health uses backend computed overall_average_health
       const averageHealth = Math.round(data.summary_stats?.overall_average_health ?? 0);
 
       updateTiles(totalTriggered, averageHealth, totalModels, off_sections, normal_sections);
@@ -213,7 +209,6 @@ function fetchModelHealth(agentName) {
 
       Plotly.newPlot(plotDiv, [healthTrace], healthLayout, { responsive: true });
 
-      const plotHeight = 300;
       const featureDf = data.feature_df || {};
       const xFeat = (data.feature_timestamps || []).map(toIsoish);
 
@@ -223,13 +218,15 @@ function fetchModelHealth(agentName) {
         featureDiv.style.marginBottom = "30px";
         if (features) features.appendChild(featureDiv);
 
+        const isUnhealthy = !!(data.feature_state && (data.feature_state[featureName] || 0) > 0);
+
         const featureTrace = {
           x: xFeat,
           y: featureDf[featureName] || [],
           mode: "lines",
           type: "scatter",
           name: featureName,
-          line: { color: getRandomColor(), width: 2 },
+          line: { color: isUnhealthy ? "red" : getRandomColor(), width: isUnhealthy ? 3 : 2 },
         };
 
         const details = data.feature_details || {};
@@ -251,7 +248,7 @@ function fetchModelHealth(agentName) {
             ? { title: `${featDetails.unit_description} (${featDetails.unit})`, showgrid: true }
             : { title: "Feature Values", showgrid: true },
           autosize: true,
-          height: plotHeight,
+          height: 300,
         };
 
         if (data.feature_state && (data.feature_state[featureName] || 0) > 0) {
@@ -269,26 +266,22 @@ function fetchModelHealth(agentName) {
 }
 
 function plotModelHealth(modelHealthData, container, model_details) {
-  // If timestamp is already a display string, Date parsing can be risky.
-  // Prefer ISO-ish conversion if possible; fallback to Date(...) anyway.
   const xValues = (modelHealthData || []).map((entry) => {
     const ts = entry.timestamp;
     if (!ts) return null;
-
-    // Try "YYYY-MM-DD HH:MM:SS" first
     if (typeof ts === "string" && ts.length >= 19) {
       const isoish = toIsoish(ts.substring(0, 19));
       const d = new Date(isoish);
       if (!isNaN(d.getTime())) return d.toISOString();
     }
-
-    // fallback
     const d2 = new Date(ts);
     return isNaN(d2.getTime()) ? null : d2.toISOString();
   });
 
   const modelKey =
-    modelHealthData && modelHealthData[0] ? Object.keys(modelHealthData[0]).find((k) => k !== "timestamp") : null;
+    modelHealthData && modelHealthData[0]
+      ? Object.keys(modelHealthData[0]).find((k) => k !== "timestamp")
+      : null;
 
   const yValues = modelKey ? modelHealthData.map((entry) => entry[modelKey]) : [];
 
