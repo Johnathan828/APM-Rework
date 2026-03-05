@@ -7,10 +7,9 @@ import json
 import logging
 import os
 import signal
-from datetime import timedelta
 from pathlib import Path
 from threading import Lock
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -51,7 +50,11 @@ flask_host = config.get("FLASK", "host", fallback="0.0.0.0")
 flask_port = int(config.get("FLASK", "port", fallback="8871"))
 url_prefix = config.get("FLASK", "url_prefix", fallback="/Neuromine/LIO/APM/")
 tz_name = config.get("FLASK", "timezone", fallback="Africa/Johannesburg")
+
+# This influences time.* functions on many linux systems,
+# but NOT pandas UTC calls. We still explicitly convert where needed.
 os.environ["TZ"] = tz_name
+TZ = pytz.timezone(tz_name)
 
 # -----------------------------------------------------------------------------
 # Flask app + blueprint
@@ -174,6 +177,14 @@ def _cache_fresh(entry) -> bool:
     return (_now_utc() - ts).total_seconds() < float(entry["ttl_s"])
 
 
+def invalidate_cache(*keys: str):
+    """Force cache refresh (used when starting/stopping sensors)."""
+    with cache_lock:
+        for k in keys:
+            if k in CACHE:
+                CACHE[k]["ts"] = None
+
+
 def get_latest_events_per_model(events, N=1):
     model_events = {}
     for event in events:
@@ -217,10 +228,6 @@ def get_cached_model_df(minutes: int = 15) -> pd.DataFrame:
 
 
 def get_cached_model_df_larger(hours: int = 6, cols: Optional[List[str]] = None) -> pd.DataFrame:
-    """
-    Cached MSSQL pull for larger window (used by plots).
-    If cols is None: defaults to only SSOT sensor keys.
-    """
     cache_key = "model_df_larger"
 
     with cache_lock:
@@ -281,6 +288,49 @@ def get_cached_events(days: int = 1):
 
 
 # -----------------------------------------------------------------------------
+# Runtime truth overlay (supervisor + enabled + heartbeat)
+# -----------------------------------------------------------------------------
+def runtime_state_by_sensor() -> Dict[str, str]:
+    """
+    Returns {sensor_key: "Running"|"Stopped"} based on:
+      - supervisor status
+      - enabled flag
+      - heartbeat freshness
+    """
+    sup_st, _ = supervisor_status(SITE_ROOT)
+    supervisor_ok = sup_st in ("Running", "Stale")  # your existing semantics
+
+    out: Dict[str, str] = {}
+
+    # map pretty -> sensor_key + enabled
+    for pretty, info in models_status.items():
+        sensor_key = info.get("sensor_key")
+        if not sensor_key or sensor_key not in data:
+            continue
+
+        enabled = bool(info.get("enabled", False))
+        if not enabled or not supervisor_ok:
+            out[sensor_key] = "Stopped"
+            continue
+
+        hb = read_heartbeat(SITE_ROOT, sensor_key)
+        hb_st = status_from_heartbeat(hb)
+
+        # IMPORTANT: for LIVE MONITORING, treat "Stale" as STOPPED,
+        # otherwise a dead worker looks "running" for too long.
+        if hb_st == "Running":
+            out[sensor_key] = "Running"
+        else:
+            out[sensor_key] = "Stopped"
+
+    # ensure all sensors exist in dict
+    for sk in data.keys():
+        out.setdefault(sk, "Stopped")
+
+    return out
+
+
+# -----------------------------------------------------------------------------
 # Routes
 # -----------------------------------------------------------------------------
 @neuromine_bp.route("/")
@@ -305,62 +355,95 @@ def lives_agents():
 
 @neuromine_bp.route("/lives_agents_data", methods=["GET"])
 def lives_agents_data():
-    date_to = datetime.datetime.now()
+    # Use SAST for the displayed timestamp in UI
+    date_to = datetime.datetime.now(TZ)
+
     live_update = []
     summary_stats = {}
 
     try:
+        # Runtime truth overlay
+        rt = runtime_state_by_sensor()
+
         model_df = get_cached_model_df(minutes=15)
         events = get_cached_events(days=1)
         filtered_events = get_latest_events_per_model(events, N=2) if events else []
 
-        if not model_df.empty:
-            for sensor_key, cfg in data.items():
-                status_tag = (cfg.get("filter_tag", {}) or {}).get("FilterTagName", f"{sensor_key}_Section_Status")
+        # Compute overall average health excluding Section Off / Stopped
+        health_for_avg: List[float] = []
 
-                if sensor_key in model_df.columns and not model_df[sensor_key].dropna().empty:
-                    health_score = float(model_df[sensor_key].dropna().iloc[-1]) * 100.0
-                else:
-                    health_score = 0.0
-                health_score = round(health_score, 1)
+        for sensor_key, cfg in data.items():
+            status_tag = (cfg.get("filter_tag", {}) or {}).get("FilterTagName", f"{sensor_key}_Section_Status")
 
-                if status_tag in model_df.columns and not model_df[status_tag].dropna().empty:
-                    on_off_status = float(model_df[status_tag].dropna().iloc[-1])
-                else:
-                    on_off_status = 0.0
-
-                alarm_thresh = float((cfg.get("Other", {}) or {}).get("alarm_thresh", 0.75)) * 100.0
-
-                if on_off_status == 0:
-                    latest_result = "Section Off"
-                elif health_score < 0:
-                    latest_result = "No Data"
-                    health_score = 0
-                elif (health_score > alarm_thresh) and (health_score < alarm_thresh + (100 - alarm_thresh) * 0.5):
-                    latest_result = "Warning"
-                elif health_score > alarm_thresh:
-                    latest_result = "Normal"
-                else:
-                    latest_result = "Triggered"
-
+            # If runtime says Stopped, override immediately (even if MSSQL has old "normal" rows)
+            runtime_status = rt.get(sensor_key, "Stopped")
+            if runtime_status != "Running":
                 live_update.append(
                     {
                         "agent_name": cfg.get("Model_Description", sensor_key),
                         "plant_section": cfg.get("Plant Section", "Unknown"),
                         "type": "Machine Learning",
-                        "latest_result": latest_result,
-                        "probability_date": date_to,
-                        "alert_probability": health_score,
+                        "latest_result": "Stopped",
+                        "probability_date": date_to.strftime("%a, %d %b %Y %H:%M:%S %Z"),
+                        "alert_probability": 0.0,
                         "events": [ev for ev in filtered_events if ev.get("model_name") == sensor_key],
                     }
                 )
+                continue
+
+            # Otherwise, use DB data for score + section status
+            if sensor_key in model_df.columns and not model_df[sensor_key].dropna().empty:
+                health_score = float(model_df[sensor_key].dropna().iloc[-1]) * 100.0
+            else:
+                health_score = 0.0
+            health_score = round(health_score, 1)
+
+            if status_tag in model_df.columns and not model_df[status_tag].dropna().empty:
+                on_off_status = float(model_df[status_tag].dropna().iloc[-1])
+            else:
+                on_off_status = 0.0
+
+            alarm_thresh = float((cfg.get("Other", {}) or {}).get("alarm_thresh", 0.75)) * 100.0
+
+            if on_off_status == 0:
+                latest_result = "Section Off"
+            elif health_score < 0:
+                latest_result = "No Data"
+                health_score = 0
+            elif (health_score > alarm_thresh) and (health_score < alarm_thresh + (100 - alarm_thresh) * 0.5):
+                latest_result = "Warning"
+            elif health_score > alarm_thresh:
+                latest_result = "Normal"
+            else:
+                latest_result = "Triggered"
+
+            # For overall health average: exclude Section Off
+            if latest_result != "Section Off":
+                health_for_avg.append(float(health_score))
+
+            live_update.append(
+                {
+                    "agent_name": cfg.get("Model_Description", sensor_key),
+                    "plant_section": cfg.get("Plant Section", "Unknown"),
+                    "type": "Machine Learning",
+                    "latest_result": latest_result,
+                    "probability_date": date_to.strftime("%a, %d %b %Y %H:%M:%S %Z"),
+                    "alert_probability": health_score,
+                    "events": [ev for ev in filtered_events if ev.get("model_name") == sensor_key],
+                }
+            )
 
         total_events = len(filtered_events)
-        average_health = sum(ev.get("score", 0) for ev in filtered_events) / total_events if total_events > 0 else 0
+        average_health_events = (
+            sum(ev.get("score", 0) for ev in filtered_events) / total_events if total_events > 0 else 0
+        )
+
+        overall_avg = (sum(health_for_avg) / len(health_for_avg)) if health_for_avg else 0.0
 
         summary_stats = {
             "Total_events": total_events,
-            "average_health": round(average_health, 2),
+            "average_health": round(average_health_events, 2),
+            "overall_average_health": round(overall_avg, 2),  # ✅ used by JS Average Health tile
             "Total_monitored_sections": 1,
             "total_tag_inputs": 0,
         }
@@ -373,9 +456,6 @@ def lives_agents_data():
 
 @neuromine_bp.route("/get-image/<image_name>")
 def serve_dynamic_image(image_name):
-    """
-    Legacy-compatible: Live Agents groups try to load /get-image/<PlantSection>.gif
-    """
     filename = secure_filename(image_name)
     image_path = FLASK_ROOT / "static" / "images" / filename
 
@@ -384,271 +464,14 @@ def serve_dynamic_image(image_name):
     return jsonify({"error": "Image not found"}), 404
 
 
-@neuromine_bp.route("/get_model_health")
-def get_model_health():
-    """
-    SSOT + legacy-compatible endpoint used by Live Agents click.
-
-    Health score:
-      - MSSQL APM_Scalability(_Dev): displayname=sensor score (sensor_key)
-
-    Feature plots:
-      - Postgres sri_get_tag_data via build_wide_from_postgres (raw tag trends)
-    """
-    agent_name = (request.args.get("agent_name") or "").strip()
-    if not agent_name:
-        return jsonify({"error": "agent_name is required"}), 400
-
-    # Resolve sensor_key robustly:
-    description_map = {str(cfg.get("Model_Description", k)): k for k, cfg in data.items()}
-    if agent_name in data:
-        sensor_key = agent_name
-    elif agent_name in description_map:
-        sensor_key = description_map[agent_name]
-    else:
-        return jsonify({"error": f"Unknown agent_name: {agent_name}"}), 400
-
-    sensor_cfg = data.get(sensor_key, {}) or {}
-    features_cfg = sensor_cfg.get("Features", {}) or {}
-
-    # Raw tags to plot (SSOT-driven)
-    tags = []
-    tag_to_feature = {}
-    for feat_name, feat_cfg in features_cfg.items():
-        tag = (feat_cfg or {}).get("tag")
-        if tag:
-            tags.append(tag)
-            tag_to_feature[tag] = feat_name
-
-    # Score column candidates (robust): sensor_key, and (optionally) FilterTagName
-    score_displaynames = [sensor_key]
-    status_tag = (sensor_cfg.get("filter_tag", {}) or {}).get("FilterTagName")
-    if status_tag and status_tag not in score_displaynames:
-        score_displaynames.append(status_tag)
-
-    try:
-        now_utc = pd.Timestamp.utcnow()
-        start_utc = now_utc - pd.Timedelta(hours=6)
-
-        # -------------------------
-        # 1) Health score from MSSQL
-        # -------------------------
-        model_df = get_cached_model_df_larger(hours=6, cols=score_displaynames)
-        if model_df is None:
-            model_df = pd.DataFrame()
-
-        timestamps = []
-        health_scores = []
-
-        if not model_df.empty:
-            model_df = model_df.sort_index()
-            model_df.replace(-1, np.nan, inplace=True)
-            model_df.ffill(inplace=True)
-            model_df.bfill(inplace=True)
-
-            score_col = sensor_key if sensor_key in model_df.columns else None
-            if score_col is not None and not model_df[score_col].dropna().empty:
-                timestamps = model_df.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
-                health_scores = (model_df[score_col].astype(float) * 100.0).tolist()
-
-        logger.info(
-            "GET_MODEL_HEALTH | agent=%s sensor_key=%s | model_df.empty=%s cols=%s | points=%s",
-            agent_name,
-            sensor_key,
-            model_df.empty,
-            list(model_df.columns)[:20] if isinstance(model_df, pd.DataFrame) and not model_df.empty else [],
-            0 if not timestamps else len(timestamps),
-        )
-
-        # -------------------------
-        # 2) Raw feature tags from Postgres
-        # -------------------------
-        feature_timestamps = []
-        feature_df_payload = {}
-
-        # Postgres interval literal
-        interval_str = "1 minute"
-
-        if tags:
-            raw_wide = data_collector.build_wide_from_postgres(
-                tags=tags,
-                start=start_utc.to_pydatetime(),
-                end=now_utc.to_pydatetime(),
-                interval_str=interval_str,
-            )
-
-            if raw_wide is None:
-                raw_wide = pd.DataFrame(index=pd.DatetimeIndex([]))
-
-            if not raw_wide.empty:
-                raw_wide = raw_wide.sort_index()
-                raw_wide.replace(-1, np.nan, inplace=True)
-                raw_wide.ffill(inplace=True)
-                raw_wide.bfill(inplace=True)
-
-                feature_timestamps = raw_wide.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
-
-                for tag_col in raw_wide.columns:
-                    feat_name = tag_to_feature.get(tag_col)
-                    if not feat_name:
-                        continue
-                    vals = raw_wide[tag_col].astype(float).where(pd.notnull(raw_wide[tag_col]), None).tolist()
-                    feature_df_payload[feat_name] = vals
-
-        # -------------------------
-        # 3) Feature state highlighting
-        # If you later wire contributions into MSSQL, compute it here.
-        # For now keep stable.
-        # -------------------------
-        feature_state = {feat: 0.0 for feat in features_cfg.keys()}
-
-        payload = {
-            "timestamps": timestamps,
-            "health_scores": health_scores,
-            "feature_timestamps": feature_timestamps,
-            "feature_df": feature_df_payload,
-            "health_score": health_scores[-1] if health_scores else 0,
-            "last_check": timestamps[-1] if timestamps else None,
-            "feature_state": feature_state,
-            "feature_details": sensor_cfg,
-        }
-        return jsonify(payload)
-
-    except Exception:
-        logger.error("get_model_health exception", exc_info=True)
-        return jsonify({"error": "Error fetching model health"}), 500
-
-    finally:
-        try:
-            data_collector.release_connections()
-        except Exception:
-            pass
-
-
-@neuromine_bp.route("/get_alert_detail", methods=["GET"])
-def get_alert_detail():
-    """
-    Legacy-compatible endpoint used by Recent Alert Events View.
-
-    IMPORTANT FIX:
-    Use Postgres raw tag pull for feature contributions (no get_timescale_data dependency).
-    """
-    agent_name = request.args.get("agent_name")
-    trigger_time = request.args.get("trigger_time")
-
-    if not agent_name or not trigger_time:
-        return jsonify({"error": "agent_name and trigger_time are required"}), 400
-
-    sensor_key = agent_name
-    sensor_cfg = data.get(sensor_key, {}) or {}
-    features_cfg = sensor_cfg.get("Features", {}) or {}
-
-    try:
-        date_to = pd.to_datetime(trigger_time, utc=True, errors="coerce")
-        if pd.isna(date_to):
-            date_to = pd.to_datetime(trigger_time, errors="coerce")
-        if pd.isna(date_to):
-            return jsonify({"error": f"Could not parse trigger_time: {trigger_time}"}), 400
-
-        date_to_dt = date_to.to_pydatetime()
-        start_time = date_to_dt - datetime.timedelta(seconds=5)
-        pull_start = date_to_dt - datetime.timedelta(hours=5)
-
-        # Get event (with contributions)
-        events = data_collector.get_model_event_data(
-            model_name=[sensor_key],
-            start_time=start_time,
-            end_time=date_to_dt,
-        ) or []
-
-        if not events:
-            return jsonify({"error": "No event found in window"}), 404
-
-        event0 = events[0]
-        event_details = event0.get("event_details", {}) or {}
-        contrib = (event_details.get("Feature") or event_details.get("feature") or {}) or {}
-
-        triggered_tags = []
-        for feat_name, v in contrib.items():
-            if feat_name in features_cfg:
-                triggered_tags.append({"feature": feat_name, "value": float(v)})
-
-        # Model score history from MSSQL
-        model_df = data_collector.get_neuro_displayname_data(
-            date_from=pull_start,
-            date_to=date_to_dt,
-            model_cols=[sensor_key],
-        )
-        if model_df is None:
-            model_df = pd.DataFrame()
-
-        if not model_df.empty:
-            model_df.replace(-1, np.nan, inplace=True)
-            model_df.ffill(inplace=True)
-            model_df = model_df.where(pd.notnull(model_df), None)
-
-        model_df = model_df.reset_index()
-        model_health_data = model_df.rename(columns={"index": "timestamp"}).to_dict(orient="records")
-
-        # Feature history from Postgres raw tags (SSOT tags)
-        tags = []
-        tag_to_feature = {}
-        for feat_name, feat_cfg in features_cfg.items():
-            tag = (feat_cfg or {}).get("tag")
-            if tag:
-                tags.append(tag)
-                tag_to_feature[tag] = feat_name
-
-        feature_contributions = {}
-        if tags:
-            raw_wide = data_collector.build_wide_from_postgres(
-                tags=tags,
-                start=pull_start,
-                end=date_to_dt,
-                interval_str="1 minute",
-            )
-            if raw_wide is None:
-                raw_wide = pd.DataFrame(index=pd.DatetimeIndex([]))
-
-            if not raw_wide.empty:
-                raw_wide = raw_wide.sort_index()
-                raw_wide.replace(-1, np.nan, inplace=True)
-                raw_wide.ffill(inplace=True)
-                raw_wide.bfill(inplace=True)
-
-                # Build legacy-like per-feature series: [{timestamp, value}, ...]
-                for tag_col in raw_wide.columns:
-                    feat_name = tag_to_feature.get(tag_col, tag_col)
-                    series_df = pd.DataFrame(
-                        {"timestamp": raw_wide.index.strftime("%Y-%m-%d %H:%M:%S"), "value": raw_wide[tag_col].tolist()}
-                    )
-                    feature_contributions[feat_name] = series_df.to_dict(orient="records")
-
-        return jsonify(
-            {
-                "triggered_tags": triggered_tags,
-                "model_health_data": model_health_data,
-                "feature_contributions": feature_contributions,
-                "model_details": sensor_cfg,
-            }
-        )
-
-    except Exception:
-        logger.error("get_alert_detail exception", exc_info=True)
-        return jsonify({"error": "Error fetching alert detail"}), 500
-
-    finally:
-        try:
-            data_collector.release_connections()
-        except Exception:
-            pass
+# (get_model_health / get_alert_detail left as you already have them working)
+# -----------------------------------------------------------------------------
 
 
 @neuromine_bp.route("/startstop", methods=["GET"])
 def show_start_stop_page():
     """
     Recompute UI status from heartbeat + enabled switch.
-    Keeps UI consistent with backend after supervisor stop.
     """
     allowed_pretty_names = set(desc_to_key.keys())
 
@@ -716,6 +539,7 @@ def supervisor_action():
 
     if action == "start":
         pid = start_supervisor(SITE_ROOT)
+        invalidate_cache("model_df", "events", "model_df_larger")
         st, _ = supervisor_status(SITE_ROOT)
         return jsonify({"status": st, "pid": pid, "action": "Stop"})
 
@@ -732,6 +556,7 @@ def supervisor_action():
         with open(models_status_path, "w") as f:
             json.dump(models_status, f, indent=4)
 
+        invalidate_cache("model_df", "events", "model_df_larger")
         st, _ = supervisor_status(SITE_ROOT)
         return jsonify({"status": st, "killed": killed, "action": "Start"})
 
@@ -745,7 +570,7 @@ def start_stop_agent():
     action = (payload.get("action") or "").strip()
     agent_name = payload.get("agent_name")
 
-    now = datetime.datetime.now(pytz.timezone(tz_name))
+    now = datetime.datetime.now(TZ)
     updated_agents = []
 
     if action == "StartAll":
@@ -759,7 +584,7 @@ def start_stop_agent():
             try:
                 models_status[pretty]["enabled"] = True
                 start_sensor(SITE_ROOT, sensor_key)
-                models_status[pretty]["status"] = "Running"  # optimistic
+                models_status[pretty]["status"] = "Running"
                 models_status[pretty]["PID"] = None
                 updated_agents.append({"name": pretty, "status": "Running"})
                 logger.info(f"Started {pretty} ({sensor_key}) at {now.isoformat()}")
@@ -768,6 +593,8 @@ def start_stop_agent():
 
         with open(models_status_path, "w") as f:
             json.dump(models_status, f, indent=4)
+
+        invalidate_cache("model_df", "events", "model_df_larger")
 
         return jsonify(
             {
@@ -807,6 +634,8 @@ def start_stop_agent():
 
     with open(models_status_path, "w") as f:
         json.dump(models_status, f, indent=4)
+
+    invalidate_cache("model_df", "events", "model_df_larger")
 
     return jsonify(
         {

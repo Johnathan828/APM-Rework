@@ -145,7 +145,7 @@
           "Other": {
             "granularity": 15,
             "granularity_type": "seconds",
-            "sampling_freq_seconds": 30,
+            "sampling_freq_seconds": 60,
             "alarm_thresh": 0.75,
             "startup_period": 3,
             "filter_value": 1,
