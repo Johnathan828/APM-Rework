@@ -1,274 +1,416 @@
-// Javascript top manage the live
+// flask_app/static/js/live_script.js
 
-
-// Global variable to track if the fetch is automatic or manual
 let isAutomaticFetch = false;
-let selectedAgentName = null; // Global variable to track the selected agent
+let selectedAgentName = null;
+
+function base() {
+  // Must be injected by template as window.baseUrl, e.g. "/Neuromine/LIO/APM/"
+  return window.baseUrl || "/";
+}
+
+// Convert "YYYY-MM-DD HH:MM:SS" -> "YYYY-MM-DDTHH:MM:SS"
+function toIsoish(ts) {
+  if (!ts) return ts;
+  if (typeof ts !== "string") return ts;
+  if (ts.includes("T")) return ts;
+  return ts.replace(" ", "T");
+}
+
+function getRandomColor() {
+  const letters = "0123456789ABCDEF";
+  let color = "#";
+  for (let i = 0; i < 6; i++) color += letters[Math.floor(Math.random() * 16)];
+  return color;
+}
+
+function updateTiles(totalTriggered, averageHealth, totalModels, offSections, normalSections) {
+  document.getElementById("total-anomalies").textContent = totalTriggered;
+  document.getElementById("average-health").textContent = `${averageHealth}%`;
+  document.getElementById("another-total").textContent = totalModels;
+  document.getElementById("latest-results-on").textContent = normalSections;
+  document.getElementById("latest-results-off").textContent = offSections;
+}
+
+function setSelectedAgent(agentName, event) {
+  if (event) event.preventDefault();
+  selectedAgentName = agentName;
+  isAutomaticFetch = false;
+  fetchModelHealth(agentName);
+  fetchLiveUpdates();
+}
 
 function fetchLiveUpdates() {
-    let url = '/lives_agents_data';
+  let url = base() + "lives_agents_data";
+  if (selectedAgentName) {
+    url += `?agent_name=${encodeURIComponent(selectedAgentName)}`;
+  }
 
-    // Append the selectedAgentName as a query parameter if it's set
-    if (selectedAgentName) {
-        url += `?agent_name=${encodeURIComponent(selectedAgentName)}`;
-    }
-    
-    console.log("Fetching URL: ", url);
-    
-    // Use the dynamically constructed URL
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            // let tbody = document.getElementById('agents-table-body');
-            let alertTbody = document.getElementById('alert-events-table');
+  fetch(url)
+    .then((r) => r.json())
+    .then((data) => {
+      const tbody = document.getElementById("agents-table-body");
+      const alertTbody = document.getElementById("alert-events-table");
 
-            // Clear current table rows
-            // tbody.innerHTML = '';
-            alertTbody.innerHTML = '';
+      tbody.innerHTML = "";
+      alertTbody.innerHTML = "";
 
-            // Event Summary: Elements for stats
-            let totalAnomaliesElem = document.getElementById('total-events');
-            let averageHealthElem = document.getElementById('average-event-health');
-            let totalMonitoredSectionsElem = document.getElementById('total-monitored-sections');
-            let totalTagInputsElem = document.getElementById('Total-Tag-Inputs');
+      // Event summary tiles
+      document.getElementById("total-events").textContent = data.summary_stats?.Total_events ?? 0;
+      document.getElementById("average-event-health").textContent = `${data.summary_stats?.average_health ?? 0}%`;
+      document.getElementById("total-monitored-sections").textContent = data.summary_stats?.Total_monitored_sections ?? 0;
+      document.getElementById("Total-Tag-Inputs").textContent = data.summary_stats?.total_tag_inputs ?? 0;
 
-            // Assign Stats
-            let totalEvents = data.summary_stats.Total_events;
-            let eventAverageHealth = data.summary_stats.average_health;
-            let totalMonitoredSections = data.summary_stats.Total_monitored_sections;
-            let totalTagInputs = data.summary_stats.total_tag_inputs;
+      const models = data.models || [];
 
-            // Update the HTML values
-            totalAnomaliesElem.textContent = totalEvents;
-            averageHealthElem.textContent = `${eventAverageHealth}%`;
-            totalMonitoredSectionsElem.textContent = totalMonitoredSections;
-            totalTagInputsElem.textContent = totalTagInputs;
+      let totalTriggered = 0;
+      let off_sections = 0;
+      let normal_sections = 0;
 
-            // tbody.innerHTML = ''; // Clear current table rows
-            alertTbody.innerHTML = '';  // Clear current table rows for alerts
+      const totalModels = models.length;
 
-            // let totalAnomalies = 0; // Initialize total anomalies
-            // let totalAlertProbability = 0; // To calculate average health
-            // let runningModels = data.models.length; // Number of agents/models
+      // Group by plant_section (legacy)
+      const groups = models.reduce((acc, m) => {
+        const sec = m.plant_section || "Unknown";
+        acc[sec] = acc[sec] || [];
+        acc[sec].push(m);
+        return acc;
+      }, {});
 
-            data.models.forEach(model => {
-            //     // Add the agent rows to the left-column table
-            //     let row = `
-            //     <tr>
-            //         <td><a href="#" onclick="setSelectedAgent('${model.agent_name}')">${model.agent_name}</a></td>
-            //         <td>${model.type}</td>
-            //         <td>${model.latest_result}</td>
-            //         <td>${model.probability_date}</td>
-            //         <td style="display: flex; align-items: center;">
-            //             <div class="probability-bar-container" style="width: 80px; height: 25px; margin-right: 10px;">
-            //                 <div class="probability-bar-inner"
-            //                     style="width: ${model.alert_probability}%; 
-            //                             height: 100%;
-            //                             background-color: ${model.alert_probability > 70 ? 'green' : model.alert_probability > 50 ? 'yellow' : 'red'};">
-            //                 </div>
-            //             </div>
-            //             <span style="font-weight: bold;">${model.alert_probability}%</span>
-            //         </td>
-            //     </tr>
-            //     `;
-            //     tbody.innerHTML += row;
+      Object.keys(groups).forEach((sec) => {
+        groups[sec].sort((a, b) => (a.alert_probability ?? 0) - (b.alert_probability ?? 0));
+      });
 
-            //     // Count anomalies where alert probability is less than 67
-            //     if (model.alert_probability < 67) {
-            //         totalAnomalies++;
-            //     }
+      Object.keys(groups)
+        .sort()
+        .forEach((plantSection) => {
+          const safeName = plantSection.replace(/\s+/g, "_");
 
-            //     // Accumulate total alert probability for average calculation
-            //     totalAlertProbability += model.alert_probability;
+          const groupHeader = `
+            <tr>
+              <td colspan="6" style="font-weight:bold; background:#b2babb; text-align:center; font-size:1.5rem;">
+                ${plantSection}
+              </td>
+            </tr>
+          `;
+          tbody.innerHTML += groupHeader;
 
-                // Check for events and add them to the alert-events table
-                if (model.events && model.events.length > 0) {
-                    model.events.forEach(event => {
-                        let alertRow = `
-                        <tr>
-                            <td><a href="#" onclick="setSelectedAgent('${event.model_name}')">${event.model_name}</a></td>
-                            <td>${event.model_type}</td>
-                            <td>Triggered</td>
-                            <td>${event.trigger_time}</td>
-                            <td>${model.probability_date}</td>
-                            <td>${event.score}%</td>
-                            <td>${event.level}</td>
-                        </tr>
-                        `;
-                        alertTbody.innerHTML += alertRow;
-                    });
-                }
-            });
+          const rows = groups[plantSection];
 
+          rows.forEach((model, index) => {
+            const imageUrl = `${base()}get-image/${safeName}.gif`;
+            const imageCell =
+              index === 0
+                ? `<td rowspan="${rows.length}" style="text-align:center; vertical-align:middle; background:white;">
+                     <img src="${imageUrl}" alt="${plantSection}" style="height:150px;">
+                   </td>`
+                : "";
 
+            const barColor =
+              model.latest_result === "No Data" || model.latest_result === "Section Off"
+                ? "grey"
+                : model.latest_result === "Normal"
+                ? "green"
+                : model.latest_result === "Warning"
+                ? "yellow"
+                : "red";
 
-            // Calculate average health as the average of alert probabilities
-            let averageHealth = Math.round(totalAlertProbability / runningModels);
+            const row = `
+              <tr>
+                ${imageCell}
+                <td><a href="#" onclick="setSelectedAgent('${model.agent_name}', event)">${model.agent_name}</a></td>
+                <td>${model.type ?? ""}</td>
+                <td class="lates_results_td" data-status="${model.latest_result}">${model.latest_result}</td>
+                <td>${model.probability_date ?? ""}</td>
+                <td style="display:flex; align-items:center;">
+                  <div class="probability-bar-container" style="width:80px; height:25px; margin-right:10px;">
+                    <div class="probability-bar-inner" style="width:${model.alert_probability ?? 0}%; height:100%; background-color:${barColor};"></div>
+                  </div>
+                  <span style="font-weight:bold;">${model.alert_probability ?? 0}%</span>
+                </td>
+              </tr>
+            `;
+            tbody.innerHTML += row;
 
-            // Update tiles with the calculated values
-            updateTiles(totalAnomalies, averageHealth, runningModels);
-        })
-        .catch(error => console.error('Error fetching data:', error));
-}
+            if ((model.alert_probability ?? 100) < 67 && model.latest_result === "Triggered") totalTriggered++;
+            if (model.latest_result === "Section Off" || model.latest_result == "Stopped") off_sections++;
+            if (model.latest_result === "Normal") normal_sections++;
 
-
-// Function to set the selected agent and fetch its health data
-function setSelectedAgent(agentName) {
-    console.log("Selected Agent: ", agentName); // Debug log
-    
-    selectedAgentName = agentName; // Update the selected agent name globally
-    isAutomaticFetch = false; // Mark this as a manual fetch
-    fetchModelHealth(agentName); // Fetch the model health immediately when the agent is selected
-    fetchLiveUpdates() // Also Update Tables of model selection
-}
-
-// Function to generate random color in HEX format
-function getRandomColor() {
-    const letters = '0123456789ABCDEF';
-    let color = '#';
-    for (let i = 0; i < 6; i++) {
-        color += letters[Math.floor(Math.random() * 16)];
-    }
-    return color;
-}
-
-
-// Function to fetch health details of the selected agent and plot it using Plotly.js
-function fetchModelHealth(agentName) {
-    // Show the loading spinner only if it's a manual fetch
-    if (!isAutomaticFetch) {
-        document.getElementById('loading-spinner').style.display = 'block';
-    }
-
-    fetch(`/get_model_health?agent_name=${encodeURIComponent(agentName)}`)
-        .then(response => response.json())
-        .then(data => {
-            // At this point, the data is ready, now we can clear the previous content
-            let plotDiv = document.getElementById('plot-container');
-            let healthInfo = document.getElementById('health-info');
-            let features = document.getElementById('feature-plots');
-
-            // Clear the old plot and info only when the new data is ready to be plotted
-            plotDiv.innerHTML = ''; 
-            healthInfo.innerHTML = '';
-            features.innerHTML = '';
-
-            // Hide the loading spinner when data is loaded
-            document.getElementById('loading-spinner').style.display = 'none';
-
-            // Prepare data for Plotly
-            const healthTrace = {
-                x: data.timestamps, // Timestamps on the X-axis (formatted as dates)
-                y: data.health_scores, // Health scores on the Y-axis
-                mode: 'lines',
-                type: 'scatter',
-                name: 'Health Score'
-            };
-
-            // Plot layout with responsive sizing
-            const healthLayout = {
-                title: `Health Score for ${agentName}`,
-                xaxis: {
-                    title: 'Time',
-                    type: 'date',
-                    tickformat: '%Y-%m-%d %H:%M',
-                    hoverformat: '%Y-%m-%d %H:%M',
-                    showgrid: true,
-                },
-                yaxis: {
-                    title: 'Health Score',
-                    range: [0, 100],
-                    showgrid: true
-                },
-                autosize: true,
-                legend: {
-                    orientation: 'h',  // Horizontal legend layout
-                    y: -0.3  // Positioning the legend below the plot, adjust y to control distance
-                }
-            };
-
-            const config = { responsive: true };
-
-            // Render the health score plot using Plotly.js
-            Plotly.newPlot(plotDiv, [healthTrace], healthLayout, config);
-
-            // Plot each feature in its own plot ############################################# Features
-            const plotHeight = 300;
-        
-            Object.keys(data.feature_df).forEach((featureName, index) => {
-                // Create a new div for each feature plot
-                const featureDiv = document.createElement('div');
-                featureDiv.id = `feature-plot-${index}`;
-                featureDiv.style.marginBottom = '30px'; // Add some space between plots
-                features.appendChild(featureDiv);  // Append the new div to the features container
-
-                // Prepare the trace for the current feature
-                const featureTrace = {
-                    x: data.feature_timestamps,  // Use the timestamps for the x-axis
-                    y: data.feature_df[featureName],  // Feature values for each column
-                    mode: 'lines',
-                    type: 'scatter',
-                    name: featureName,  // Column name as the trace name
-                    line: {
-                        color: getRandomColor(),  // Assign a random color
-                        width: 2  // Line width
-                    }
-                };
-
-                // Layout for the individual feature plot
-                const featureLayout = {
-                    title: `Feature: ${featureName}`,  // Add the feature name in the title
-                    xaxis: {
-                        title: 'Time',
-                        type: 'date',
-                        tickformat: '%Y-%m-%d %H:%M',
-                        hoverformat: '%Y-%m-%d %H:%M',
-                        showgrid: true,
-                    },
-                    yaxis: {
-                        title: 'Feature Values',
-                        showgrid: true
-                    },
-                    autosize: true,
-                    height: plotHeight // Set the height for the plot
-                };
-
-                // Render the individual plot in the newly created div
-                Plotly.newPlot(featureDiv, [featureTrace], featureLayout, config);
-            });
-        })
-        .catch(error => {
-            // Hide the loading spinner if there’s an error
-            document.getElementById('loading-spinner').style.display = 'none';
-            console.error('Error fetching model health:', error);
+            // Alerts table
+            if (model.events && model.events.length > 0) {
+              model.events.forEach((ev) => {
+                const alertRow = `
+                  <tr>
+                    <td><a href="#" onclick="getAlertDetail('${ev.model_name}', '${ev.trigger_time}', event)">${ev.model_name}</a></td>
+                    <td>${ev.model_type ?? ""}</td>
+                    <td>Triggered</td>
+                    <td>${ev.trigger_time ?? ""}</td>
+                    <td>${model.probability_date ?? ""}</td>
+                    <td>${(ev.score ?? "")}%</td>
+                    <td>${ev.level ?? ""}</td>
+                  </tr>
+                `;
+                alertTbody.innerHTML += alertRow;
+              });
+            }
+          });
         });
+
+      // Average health uses backend computed overall_average_health
+      const averageHealth = Math.round(data.summary_stats?.overall_average_health ?? 0);
+
+      updateTiles(totalTriggered, averageHealth, totalModels, off_sections, normal_sections);
+    })
+    .catch((err) => console.error("fetchLiveUpdates error:", err));
 }
 
+function fetchModelHealth(agentName) {
+  if (!isAutomaticFetch) {
+    const spinner = document.getElementById("loading-spinner");
+    if (spinner) spinner.style.display = "block";
+  }
 
-// Function to update the tile values dynamically
-function updateTiles(totalAnomalies, averageHealth, anotherTotal) {
-    document.getElementById('total-anomalies').textContent = totalAnomalies;
-    document.getElementById('average-health').textContent = `${averageHealth}%`;
-    document.getElementById('another-total').textContent = anotherTotal;
+  fetch(`${base()}get_model_health?agent_name=${encodeURIComponent(agentName)}`)
+    .then((r) => r.json())
+    .then((data) => {
+      const plotDiv = document.getElementById("plot-container");
+      const healthInfo = document.getElementById("health-info");
+      const features = document.getElementById("feature-plots");
+
+      if (plotDiv) plotDiv.innerHTML = "";
+      if (healthInfo) healthInfo.innerHTML = "";
+      if (features) features.innerHTML = "";
+
+      const spinner = document.getElementById("loading-spinner");
+      if (spinner) spinner.style.display = "none";
+
+      const xHealth = (data.timestamps || []).map(toIsoish);
+
+      const healthTrace = {
+        x: xHealth,
+        y: data.health_scores || [],
+        mode: "lines",
+        type: "scatter",
+        name: "Health Score",
+      };
+
+      const healthLayout = {
+        title: `Health Score for ${agentName}`,
+        xaxis: {
+          title: "Time",
+          type: "date",
+          tickformat: "%Y-%m-%d %H:%M",
+          hoverformat: "%Y-%m-%d %H:%M",
+          showgrid: true,
+        },
+        yaxis: { title: "Health Score", range: [0, 100], showgrid: true },
+        autosize: true,
+        legend: { orientation: "h", y: -0.3 },
+      };
+
+      Plotly.newPlot(plotDiv, [healthTrace], healthLayout, { responsive: true });
+
+      const featureDf = data.feature_df || {};
+      const xFeat = (data.feature_timestamps || []).map(toIsoish);
+
+      Object.keys(featureDf).forEach((featureName, index) => {
+        const featureDiv = document.createElement("div");
+        featureDiv.id = `feature-plot-${index}`;
+        featureDiv.style.marginBottom = "30px";
+        if (features) features.appendChild(featureDiv);
+
+        const isUnhealthy = !!(data.feature_state && (data.feature_state[featureName] || 0) > 0);
+
+        const featureTrace = {
+          x: xFeat,
+          y: featureDf[featureName] || [],
+          mode: "lines",
+          type: "scatter",
+          name: featureName,
+          line: { color: isUnhealthy ? "red" : getRandomColor(), width: isUnhealthy ? 3 : 2 },
+        };
+
+        const details = data.feature_details || {};
+        const featDetails = details.Features && details.Features[featureName] ? details.Features[featureName] : null;
+
+        const featureLayout = {
+          title: {
+            text: featDetails ? featDetails.description : featureName,
+            font: { size: 12 },
+          },
+          xaxis: {
+            title: "Time",
+            type: "date",
+            tickformat: "%Y-%m-%d %H:%M",
+            hoverformat: "%Y-%m-%d %H:%M",
+            showgrid: true,
+          },
+          yaxis: featDetails
+            ? { title: `${featDetails.unit_description} (${featDetails.unit})`, showgrid: true }
+            : { title: "Feature Values", showgrid: true },
+          autosize: true,
+          height: 300,
+        };
+
+        if (data.feature_state && (data.feature_state[featureName] || 0) > 0) {
+          featureLayout.plot_bgcolor = "rgba(255, 18, 47, 0.2)";
+        }
+
+        Plotly.newPlot(featureDiv, [featureTrace], featureLayout, { responsive: true });
+      });
+    })
+    .catch((err) => {
+      const spinner = document.getElementById("loading-spinner");
+      if (spinner) spinner.style.display = "none";
+      console.error("fetchModelHealth error:", err);
+    });
 }
 
-// Run the function immediately and then every 60 seconds
-function fetchUpdates() {
-    fetchLiveUpdates();
-
-    // If an agent has been selected, fetch its health data automatically
-    if (selectedAgentName) {
-        isAutomaticFetch = true; // Mark this as an automatic fetch
-        fetchModelHealth(selectedAgentName);
+function plotModelHealth(modelHealthData, container, model_details) {
+  const xValues = (modelHealthData || []).map((entry) => {
+    const ts = entry.timestamp;
+    if (!ts) return null;
+    if (typeof ts === "string" && ts.length >= 19) {
+      const isoish = toIsoish(ts.substring(0, 19));
+      const d = new Date(isoish);
+      if (!isNaN(d.getTime())) return d.toISOString();
     }
+    const d2 = new Date(ts);
+    return isNaN(d2.getTime()) ? null : d2.toISOString();
+  });
+
+  const modelKey =
+    modelHealthData && modelHealthData[0]
+      ? Object.keys(modelHealthData[0]).find((k) => k !== "timestamp")
+      : null;
+
+  const yValues = modelKey ? modelHealthData.map((entry) => entry[modelKey]) : [];
+
+  const trace = { x: xValues, y: yValues, type: "scatter" };
+  const layout = {
+    title: model_details && model_details.Model_Description ? model_details.Model_Description : "Model Health",
+    xaxis: { type: "date" },
+  };
+  Plotly.newPlot(container, [trace], layout, { responsive: true });
 }
 
-// Run the function immediately when the page loads
+function plotFeatureContribution(featureData, container, model_details, isHighlighted) {
+  const xValues = (featureData || []).map((entry) => {
+    const ts = entry.timestamp;
+    if (!ts) return null;
+
+    if (typeof ts === "string" && ts.length >= 19) {
+      const isoish = toIsoish(ts.substring(0, 19));
+      const d = new Date(isoish);
+      if (!isNaN(d.getTime())) return d.toISOString();
+    }
+
+    const d2 = new Date(ts);
+    return isNaN(d2.getTime()) ? null : d2.toISOString();
+  });
+
+  const yValues = (featureData || []).map((entry) => entry.value);
+
+  const title =
+    typeof model_details === "string"
+      ? model_details
+      : model_details && model_details.description
+      ? model_details.description
+      : "Feature";
+
+  const layout = {
+    title: { text: title, font: { size: 12 } },
+    xaxis: { title: "Date", type: "date", tickformat: "%Y-%m-%d %H:%M", hoverformat: "%Y-%m-%d %H:%M", showgrid: true },
+    yaxis:
+      typeof model_details === "object" && model_details && model_details.unit_description
+        ? { title: `${model_details.unit_description} (${model_details.unit})`, showgrid: true }
+        : { showgrid: true },
+    plot_bgcolor: isHighlighted ? "#ffefef" : "white",
+    autosize: true,
+    height: 300,
+  };
+
+  const trace = { x: xValues, y: yValues, type: "scatter", line: { color: getRandomColor() } };
+  Plotly.newPlot(container, [trace], layout, { responsive: true });
+}
+
+function getAlertDetail(model_name, trigger_time, event) {
+  if (event) event.preventDefault();
+
+  let url = base() + "get_alert_detail";
+  url += `?agent_name=${encodeURIComponent(model_name)}`;
+  url += `&trigger_time=${encodeURIComponent(trigger_time)}`;
+
+  const loadingSpinner = document.getElementById("loading-spinner-alerts");
+  if (loadingSpinner) loadingSpinner.style.display = "block";
+
+  fetch(url)
+    .then((r) => r.json())
+    .then((data) => {
+      if (loadingSpinner) loadingSpinner.style.display = "none";
+      if (data.error) {
+        console.error("getAlertDetail error:", data.error);
+        return;
+      }
+
+      const tableContainer = document.getElementById("triggered-tags-table-container");
+      tableContainer.innerHTML = "";
+
+      const tagsTable = document.createElement("table");
+      tagsTable.insertAdjacentHTML("afterbegin", "<tr><th>Tag</th><th>Tag description</th><th>Contribution %</th></tr>");
+
+      (data.triggered_tags || []).forEach((tag) => {
+        const row = document.createElement("tr");
+        const feat = tag.feature;
+        const featDetails =
+          data.model_details && data.model_details.Features && data.model_details.Features[feat]
+            ? data.model_details.Features[feat]
+            : null;
+        const tagName = featDetails ? featDetails.tag : feat;
+        const desc = featDetails ? featDetails.description : feat;
+        row.innerHTML = `<td>${tagName}</td><td>${desc}</td><td>${((tag.value || 0) * 100).toFixed(2)}%</td>`;
+        tagsTable.appendChild(row);
+      });
+
+      tableContainer.appendChild(tagsTable);
+
+      const healthPlotDiv = document.getElementById("alert_event_overview_plot");
+      plotModelHealth(data.model_health_data || [], healthPlotDiv, data.model_details || {});
+
+      const featurePlotsDiv = document.getElementById("alert_event_overview_feature_plots");
+      featurePlotsDiv.innerHTML = "";
+
+      const triggered = new Set(data.triggered_features || []);
+      const contribs = data.feature_contributions || {};
+
+      Object.keys(contribs).forEach((feature) => {
+        const plotContainer = document.createElement("div");
+        plotContainer.style.width = "100%";
+        featurePlotsDiv.appendChild(plotContainer);
+
+        const featureDic =
+          data.model_details && data.model_details.Features && data.model_details.Features[feature]
+            ? data.model_details.Features[feature]
+            : data.model_details && data.model_details.filter_tag
+            ? data.model_details.filter_tag
+            : feature;
+
+        plotFeatureContribution(contribs[feature], plotContainer, featureDic, triggered.has(feature));
+      });
+    })
+    .catch((err) => {
+      if (loadingSpinner) loadingSpinner.style.display = "none";
+      console.error("getAlertDetail fetch error:", err);
+    });
+}
+
+function fetchUpdates() {
+  fetchLiveUpdates();
+  if (selectedAgentName) {
+    isAutomaticFetch = true;
+    fetchModelHealth(selectedAgentName);
+  }
+}
+
 fetchUpdates();
-
-// Set the interval to run the function every 60 seconds thereafter
-setInterval(fetchUpdates, 60000);
-
-
-// Fetch immediately on page load
+setInterval(fetchUpdates, 300000);
 window.onload = fetchLiveUpdates;
