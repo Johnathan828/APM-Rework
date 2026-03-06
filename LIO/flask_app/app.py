@@ -48,7 +48,7 @@ config.read(str(ini_path))
 
 flask_host = config.get("FLASK", "host", fallback="0.0.0.0")
 flask_port = int(config.get("FLASK", "port", fallback="8871"))
-url_prefix = config.get("FLASK", "url_prefix", fallback="/Neuromine/LIO/APM/")
+url_prefix = config.get("FLASK", "url_prefix", fallback="")
 tz_name = config.get("FLASK", "timezone", fallback="Africa/Johannesburg")
 
 # This influences time.* functions on many linux systems,

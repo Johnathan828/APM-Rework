@@ -66,7 +66,7 @@
 
             <!-- Supervisor row -->
             <tr id="agent_APM_Supervisor">
-                <td><strong>LIO Monitoring and Detection Module</strong></td>
+                <td><strong>Monitoring and Detection Module</strong></td>
                 <td id="supervisor-status-cell"
                     class="status {% if supervisor_status in ['Running','Stale'] %}status-running{% else %}status-stopped{% endif %}">
                     {{ supervisor_status }}
@@ -127,7 +127,7 @@
     // NOTE: Keep this super simple to avoid breaking clicks.
 
     function startStopSupervisor(action) {
-        fetch('/Neuromine/LIO/APM/supervisor_action', {
+        fetch('supervisor_action', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: action })
@@ -177,7 +177,7 @@
     }
 
     function startStopAgent(agentName, action) {
-        fetch('/Neuromine/LIO/APM/startstop_action', {
+        fetch('startstop_action', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ agent_name: agentName, action: action })
@@ -207,7 +207,7 @@
     }
 
     function runAllAgents() {
-        fetch('/Neuromine/LIO/APM/startstop_action', {
+        fetch('startstop_action', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: "StartAll" })
